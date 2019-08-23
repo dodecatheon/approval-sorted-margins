@@ -1,0 +1,25 @@
+In the example profiles below 100 = P+Q+R, and  50>P>Q>R>0.  One consequence of these constraints is that in all three profiles below the cycle A>B>C>A will obtain.
+
+I am interested in simple methods that always ...
+
+(1) elect candidate A given the following profile:
+P: A
+Q: B>>C
+R: C,
+and 
+(2) elect candidate C given
+P: A
+Q: B>C>>
+R: C,
+and 
+(3) elect candidate B given
+P: A
+Q: B>>C  (or B>C)
+R: C>>B. (or C>B)
+
+
+Methods that comply:  
+with explicit Approval cutoff:
+    Smith//Approval
+    CW-full//CW-approved (flatten disapproval)//Approval
+    Approval Sorted Margins
