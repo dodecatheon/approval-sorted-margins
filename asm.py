@@ -93,9 +93,9 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
             smithlist = list(smith)
             cw = smithlist[0]
             cwname = cnames[cw]
-            print("Condorcet winner exists: ", cwname)
+            print("Pairwise winner == Sorted Margins winner: ", cwname)
         else:
-            print("No Condorcet winner -- Sorted Margins winner: ", cnames[ranking[0]])
+            print("No pairwise winner; Smith set:", [cnames[c] for c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
 
     return
 

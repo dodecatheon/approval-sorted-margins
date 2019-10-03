@@ -40,7 +40,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
     beta = np.arange(maxscorep1) / maxscore
 
-    for seat in range(numseats):
+    for seat in range(numseats+1):
 
         # ----------------------------------------------------------------------
         # Tabulation:
@@ -68,32 +68,35 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         sorted_margins(ranking,Score,(A.T > A),cnames[cands],verbose=verbose)
         permwinner = ranking[0]
         winner = cands[permwinner]
-        winners += [winner]
-        cands = np.compress(cands != winner,cands)
-        ncands -= 1
 
         if verbose:
-            print("\n-----------\n*** Seat {}: {}\n-----------\n".format(seat+1,cnames[winner]))
+            if (seat < numseats):
+                print("\n-----------\n*** Seat {}: {}\n-----------\n".format(seat+1,cnames[winner]))
+            else:
+                print("\n-----------\n*** Runner-up: {}\n-----------\n".format(cnames[winner]))
+
+        if (seat < numseats):
+            winners += [winner]
+            cands = np.compress(cands != winner,cands)
+            ncands -= 1
 
         # Scale weights by proportion of Winner's score that needs to be removed
         winsum = Score[permwinner] / maxscore
+        winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/numvotes_orig)*100))
         factor = 0.0
-        v = -1
+        v = 0
         if winsum >= quota:
             # Where possible, use score-based scaling
             remove = quota/winsum
 
-            fullfactor = 1.0 - remove
-            for r in range(maxscore,0,-1):
+            for r in range(1,maxscorep1):
                 factor = 1.0 - beta[r]*remove
                 weights = np.where(ballots[:,winner]==r, factor*weights, weights)
 
-            factor = 1.0 - (quota/winsum)
-            numvotes = sum(weights)
         else:
             # Otherwise, total scaled score is less than one quota, so default to Bucklin scaling:
             winsum = 0
-            v = 0
+            v = 1
             for r in range(maxscore,0,-1):
                 winsum += S[r][permwinner]
                 if winsum > quota:
@@ -104,18 +107,22 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                 factor = (1.0 - (quota/winsum))
                 weights = np.where(ballots[:,winner]>=v, factor*weights, weights)
             else:
-                weights = np.where(ballots[:,winner]>=v, 0, weights)
+                weights = np.where(ballots[:,winner]>0, 0, weights)
 
-            numvotes = sum(weights)
+        numvotes = weights.sum()
 
         if verbose:
             print("After reweighting ballots:")
-            if (v >= 0):
-                print("\t*** Reweighted using median rating.  Median: {}; total approved at and above median: {}".format(v,winsum))
+            print("\tQuota: {}%".format(myfmt(quota/numvotes_orig*100)))
+            print(winsum_description)
+            if (v > 0):
+                print("\t*** Winner {}'s score below quota. ".format(cnames[winner]))
+                print("\t*** Backup score: {}% rate winner >= {}".format(myfmt(winsum/numvotes_orig*100),v))
             print("\tReweighting factor:", myfmt(factor))
-            print("\tQuota:", quota)
-            print("\tNumber of votes remaining after reweighting:", myfmt(numvotes))
             print("\tPercentage of vote remaining after reweighting: {}%\n".format(myfmt((numvotes / numvotes_orig) * 100.)))
+
+        if (numvotes <= (quota + numvotes_orig*0.001) ):
+            break
 
     return(winners)
 
