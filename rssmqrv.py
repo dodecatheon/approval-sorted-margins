@@ -73,7 +73,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         ncands -= 1
 
         if verbose:
-            print("\n-----------\n*** Seat {}: Winner = {}\n-----------\n".format(seat,cnames[winner]))
+            print("\n-----------\n*** Seat {}: {}\n-----------\n".format(seat+1,cnames[winner]))
 
         # Scale weights by proportion of Winner's score that needs to be removed
         winsum = Score[permwinner] / maxscore
