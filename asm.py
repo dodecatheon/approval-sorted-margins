@@ -14,7 +14,10 @@ from collections import deque
 from math import log10
 
 def myfmt(x):
-    fmt = "{:." + "{}".format(int(log10(x))+5) + "g}"
+    if x > 0:
+        fmt = "{:." + "{}".format(int(log10(x))+5) + "g}"
+    else:
+        fmt = "{:.4g}"
     return fmt.format(x)
 
 def smith_from_losses(losses,cands):

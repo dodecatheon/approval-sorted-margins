@@ -78,6 +78,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         # Scale weights by proportion of Winner's score that needs to be removed
         winsum = Score[permwinner] / maxscore
         factor = 0.0
+        v = -1
         if winsum >= quota:
             # Where possible, use score-based scaling
             remove = quota/winsum
@@ -91,11 +92,8 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
             numvotes = sum(weights)
         else:
             # Otherwise, total scaled score is less than one quota, so default to Bucklin scaling:
-            if verbose:
-                print("*** For seat {}, using Bucklin reweighting ***".format(seat))
-
             winsum = 0
-            v = 1
+            v = 0
             for r in range(maxscore,0,-1):
                 winsum += S[r][permwinner]
                 if winsum > quota:
@@ -111,10 +109,13 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
             numvotes = sum(weights)
 
         if verbose:
-            print("Scaling factor:", myfmt(factor))
-            print("Quota:", quota)
-            print("Numvotes:", myfmt(numvotes))
-            print("Remaining quotas: {}\n".format(myfmt(numvotes / quota)))
+            print("After reweighting ballots:")
+            if (v >= 0):
+                print("\t*** Reweighted using median rating.  Median: {}; total approved at and above median: {}".format(v,winsum))
+            print("\tReweighting factor:", myfmt(factor))
+            print("\tQuota:", quota)
+            print("\tNumber of votes remaining after reweighting:", myfmt(numvotes))
+            print("\tPercentage of vote remaining after reweighting: {}%\n".format(myfmt((numvotes / numvotes_orig) * 100.)))
 
     return(winners)
 
