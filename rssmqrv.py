@@ -19,7 +19,7 @@ import numpy as np
 def droopquota(n,m):
     return(n/(m+1))
 
-def qrssmrv(ballots, weights, cnames, numseats, verbose=0):
+def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
     numballots, numcands = np.shape(ballots)
     ncands = numcands
@@ -136,10 +136,10 @@ def main():
 
     ballots, weights, cnames = csvtoballots(args.inputfile)
 
-    winners = qrssmrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
+    winners = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
 
     print("=======================")
-    print("QRSSMRV Winners = ",[cnames[q] for q in winners])
+    print("RSSMQRV Winners = ",[cnames[q] for q in winners])
 
 if __name__ == "__main__":
     main()
