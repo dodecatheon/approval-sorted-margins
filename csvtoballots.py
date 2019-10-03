@@ -28,7 +28,7 @@ def csvtoballots(filename):
         delimiter = dialect.delimiter
 
         # First row is cnames
-        cnames = next(reader)
+        cnames = np.array(next(reader))
         for i, name in enumerate(cnames):
             cnames[i] = name.strip()
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     ballots, weights, cnames = csvtoballots(fname)
 
     if len(cnames) == 0:
-        cnames = [str(i) for i in range(len(ballots[0]))]
+        cnames = np.array([str(i) for i in range(len(ballots[0]))])
 
     print(" {}:".format("weight"),cnames)
     for w, ballot in zip(weights,ballots):

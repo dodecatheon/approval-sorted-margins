@@ -11,6 +11,11 @@ Condorcet-full//Condorcet-approved//Approval and Smith//Approval winners are inc
 import numpy as np
 from csvtoballots import *
 from collections import deque
+from math import log10
+
+def myfmt(x):
+    fmt = "{:." + "{}".format(int(log10(x))+5) + "g}"
+    return fmt.format(x)
 
 def smith_from_losses(losses,cands):
     sum_losses = losses.sum(axis=1)
@@ -35,16 +40,15 @@ def smith_from_losses(losses,cands):
     return(smith)
 
 # Performs sorted margins using a generic metric seed, based on a loss_array like A.T > A
-def sorted_margins(ranking,metric,loss_array,cnames,verbose=False):
+def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
     nswaps = 0
     # Loop until no pairs are out of order pairwise
     n = len(ranking)
     ncands = len(metric)
     maxdiff = metric.max() - metric.min() + 1
-    if verbose:
+    if verbose > 1:
         print("Showing Sorted Margin iterations, starting from this initial ranking:")
-        print("\t{}\n".format(' > '.join(["{}:{}".format(cnames[c],metric[c]) for c in ranking])))
-
+        print("\t{}\n".format(' > '.join(["{}:{}".format(cnames[c],myfmt(metric[c])) for c in ranking])))
     while True:
         apprsort = metric[ranking]
         apprdiff = []
@@ -56,7 +60,7 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=False):
             c_i = ranking[i]
             c_im1 = ranking[im1]
             if (loss_array[c_im1,c_i]):
-                outoforder.append(im1)
+                outoforder.append((c_im1,c_i))
                 apprdiff.append(apprsort[im1] - apprsort[i])
                 if apprdiff[-1] < mindiffval:
                     mindiff = im1
@@ -69,13 +73,30 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=False):
         nswaps += 1
         ranking[range(mindiff,mindiff+2)] = ranking[range(mindiff+1,mindiff-1,-1)]
 
-        if verbose:
-            print("Swap #{}: swapping candidates {} and {} with minimum approval margin {}".format(
-                  nswaps,cnames[ranking[mindiff]],cnames[ranking[mindiff+1]],mindiffval))
+        if verbose > 1:
+            print("Out-of-order candidate pairs, with margins:")
+            for k, pair in enumerate(outoforder):
+                c_im1, c_i = pair
+                name_im1 = cnames[c_im1]
+                name_i = cnames[c_i]
+                print("\t{} < {}, margin = {}".format(name_im1,name_i,myfmt(apprdiff[k])))
+            print("Swap #{}: swapping candidates {} and {} with minimum margin {}".format(
+                  nswaps,cnames[ranking[mindiff]],cnames[ranking[mindiff+1]],myfmt(mindiffval)))
             print("\t{}\n".format(' > '.join([cnames[c] for c in ranking])))
-    return nswaps
 
-def asm(ballots, weight, cnames, cutoff=None, verbose=False):
+    if verbose > 0:
+        smith = smith_from_losses(np.where(loss_array, 1, 0),np.arange(ncands))
+        if len(smith) == 1:
+            smithlist = list(smith)
+            cw = smithlist[0]
+            cwname = cnames[cw]
+            print("Condorcet winner exists: ", cwname)
+        else:
+            print("No Condorcet winner -- Sorted Margins winner: ", cnames[ranking[0]])
+
+    return
+
+def asm(ballots, weight, cnames, cutoff=None, verbose=0):
     "Approval Sorted Margins"
 
     nballots, ncands = np.shape(ballots)
@@ -103,7 +124,7 @@ def asm(ballots, weight, cnames, cutoff=None, verbose=False):
             A += np.multiply.outer(np.where(ballot==r,w,0),
                                    np.where(ballot<r ,1,0))
         for r in range(minapprove,maxscorep1):
-            B += np.multiply.outer(np.where(ballot==r,w,0),
+            B += np.multiply.outer(np.where(ballot==r,w,-1),
                                    np.where(ballot<r ,1,0))
             T += np.where(ballot==r,w,0)
 
@@ -122,8 +143,7 @@ def asm(ballots, weight, cnames, cutoff=None, verbose=False):
     ranking = np.array([c for c in T.argsort()[::-1] if c in smith])
     branking = np.array([c for c in T.argsort()[::-1] if c in bsmith])
 
-    nswaps = sorted_margins(ranking,T,(A.T > A),cnames,verbose=verbose)
-
+    sorted_margins(ranking,T,(A.T > A),cnames,verbose=verbose)
     winner = ranking[0]
 
     # Put approval on diagonals
@@ -132,9 +152,9 @@ def asm(ballots, weight, cnames, cutoff=None, verbose=False):
 
     return(winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B)
  
-def test_asm(ballots,weight,cnames,cutoff=None,verbose=False):
+def test_asm(ballots,weight,cnames,cutoff=None,verbose=0):
     
-    winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B = asm(ballots,weight,cnames,cutoff=cutoff,verbose=False)
+    winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B = asm(ballots,weight,cnames,cutoff=cutoff,verbose=0)
 
     cands = np.arange(ncands)
     nsmith = len(ranking)
@@ -149,6 +169,9 @@ def test_asm(ballots,weight,cnames,cutoff=None,verbose=False):
         print("\nApproval-only Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff))
         for row in B:
             print(row)
+
+    Margins = np.multiply.outer(T,np.ones((ncands))) - np.multiply.outer(np.ones((ncands)),T)
+    Margins = np.where((A.T>A),0,Margins)
 
     print("\nApproval rankings:")
     print("\t{}".format(' > '.join([cnames[c] for c in approval_ranking])))
@@ -192,7 +215,8 @@ def test_asm(ballots,weight,cnames,cutoff=None,verbose=False):
     print("-----\n")
     # Also print out non-Smith pairwise
     full_ranking = T.argsort()[::-1]
-    nswaps = sorted_margins(full_ranking,T,(A.T > A),cnames,verbose=verbose)
+    sorted_margins(full_ranking,T,(A.T > A),cnames,verbose=verbose)
+    winner = full_ranking[0]
     print("All candidates, ranked by Approval Sorted Margins:")
     print("\t{}".format(' > '.join([cnames[c] for c in full_ranking])))
     print("\nApproval Sorted Margins pairwise results for all candidates:")
@@ -220,9 +244,11 @@ def main():
                         required=False,
                         default=None,
                         help="Approval cutoff [default: None]")
-    parser.add_argument("-v", "--verbose",
-                        action="store_true",
-                        help="Turn on verbosity in Sorted Margins [default: False]")
+    parser.add_argument('-v',
+                        '--verbose',
+                        action='count',
+                        default=0,
+                        help="Add verbosity [default: 0]")
     args = parser.parse_args()
 
     ballots, weight, cnames = csvtoballots(args.inputfile)
