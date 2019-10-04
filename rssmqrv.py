@@ -171,8 +171,8 @@ def main():
 
     winners = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
 
-    print("=======================")
-    print("RSSMQRV Winners = ",[cnames[q] for q in winners])
+    print("- "*30)
+    print("\nRSSMQRV winner(s): ",", ".join([cnames[q] for q in winners]))
 
 if __name__ == "__main__":
     main()
