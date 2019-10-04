@@ -109,7 +109,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         else:
             # Otherwise, successively raise fractional scores to full approval
             # until the quota is reached
-            ss = S[...,permwinner] * np.arange(maxscorep1) / float(maxscore)
+            ss = np.multiply(np.arange(maxscorep1)/maxscore,S[...,permwinner])
 
             winsum = 0
             v = 1
