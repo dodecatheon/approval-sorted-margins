@@ -161,7 +161,10 @@ def main():
 
     ballots, weights, cnames = csvtoballots(args.inputfile)
 
+    print("- "*30)
+    print("RANKED SCORE, SORTED MARGINS, QUOTA-BASED REWEIGHTED VOTING (RSSMQRV)")
     if args.verbose > 3:
+        print("- "*30)
         # Figure out the width of the weight field, use it to create the format
         ff = '\t{{:{}d}}:'.format(int(log10(weights.max())) + 1)
 
@@ -170,7 +173,6 @@ def main():
             print(ff.format(w),ballot)
 
     winners = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
-
     print("- "*30)
     print("\nRSSMQRV winner(s): ",", ".join([cnames[q] for q in winners]))
 

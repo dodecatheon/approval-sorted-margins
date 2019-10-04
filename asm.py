@@ -90,14 +90,11 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
 
     if verbose > 0:
         smith = smith_from_losses(np.where(loss_array, 1, 0),np.arange(ncands))
-        print("")
+        print(". "*30)
         if len(smith) == 1:
-            smithlist = list(smith)
-            cw = smithlist[0]
-            cwname = cnames[cw]
-            print("Pairwise winner == Sorted Margins winner: ", cwname)
+            print("[SORTED MARGINS] Pairwise winner == Sorted Margins winner: ", cnames[ranking[0]])
         else:
-            print("No pairwise winner; Smith set:", [cnames[c] for c in ranking if c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
+            print("[SORTED MARGINS] No pairwise winner; Smith set:", [cnames[c] for c in ranking if c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
 
     return
 
