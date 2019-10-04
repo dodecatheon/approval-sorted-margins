@@ -178,7 +178,14 @@ def main():
 
     winners, runner_up = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
     print("- "*30)
-    print("\nRSSMQRV winner(s): ",", ".join([cnames[q] for q in winners]))
+    
+    if args.seats == 1:
+        winfmt = "1 winner"
+    else:
+        winfmt = "{} winners".format(args.seats)
+
+    print("\nRSSMQRV returns {}:".format(winfmt),", ".join([cnames[q] for q in winners]))
+
     if runner_up >= 0:
         print("Runner-up: ", cnames[runner_up])
 
