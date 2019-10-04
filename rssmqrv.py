@@ -41,6 +41,8 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
     beta = np.arange(maxscorep1) / maxscore
 
+    runner_up = -1
+
     for seat in range(numseats+1):
 
         if verbose>0:
@@ -82,6 +84,8 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         sorted_margins(ranking,Score,(A.T > A),cnames[cands],verbose=verbose)
         permwinner = ranking[0]
         winner = cands[permwinner]
+        if (seat == numseats):
+            runner_up = winner
 
         if verbose:
             if (seat < numseats):
@@ -141,7 +145,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         if (numvotes <= (quota + numvotes_orig*0.001) ):
             break
 
-    return(winners)
+    return(winners, runner_up)
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -172,9 +176,11 @@ def main():
         for ballot, w in zip(ballots,weights):
             print(ff.format(w),ballot)
 
-    winners = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
+    winners, runner_up = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
     print("- "*30)
     print("\nRSSMQRV winner(s): ",", ".join([cnames[q] for q in winners]))
+    if runner_up >= 0:
+        print("Runner-up: ", cnames[runner_up])
 
 if __name__ == "__main__":
     main()
