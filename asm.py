@@ -50,6 +50,7 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
     ncands = len(metric)
     maxdiff = metric.max() - metric.min() + 1
     if verbose > 1:
+        print(". "*30)
         print("Showing Sorted Margin iterations, starting from this initial ranking:")
         print("\t{}\n".format(' > '.join(["{}:{}".format(cnames[c],myfmt(metric[c])) for c in ranking])))
     while True:
@@ -83,19 +84,20 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
                 name_im1 = cnames[c_im1]
                 name_i = cnames[c_i]
                 print("\t{} < {}, margin = {}".format(name_im1,name_i,myfmt(apprdiff[k])))
-            print("Swap #{}: swapping candidates {} and {} with minimum margin {}".format(
+            print("\nSwap #{}: swapping candidates {} and {} with minimum margin {}".format(
                   nswaps,cnames[ranking[mindiff]],cnames[ranking[mindiff+1]],myfmt(mindiffval)))
             print("\t{}\n".format(' > '.join([cnames[c] for c in ranking])))
 
     if verbose > 0:
         smith = smith_from_losses(np.where(loss_array, 1, 0),np.arange(ncands))
+        print("")
         if len(smith) == 1:
             smithlist = list(smith)
             cw = smithlist[0]
             cwname = cnames[cw]
             print("Pairwise winner == Sorted Margins winner: ", cwname)
         else:
-            print("No pairwise winner; Smith set:", [cnames[c] for c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
+            print("No pairwise winner; Smith set:", [cnames[c] for c in ranking if c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
 
     return
 

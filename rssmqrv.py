@@ -15,6 +15,7 @@ import argparse
 import sys
 import os
 import numpy as np
+from math import log10
 
 def droopquota(n,m):
     return(n/(m+1))
@@ -42,6 +43,12 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
     for seat in range(numseats+1):
 
+        if verbose>0:
+            if (seat < numseats):
+                print("- "*30,"\nStarting count for seat", seat+1)
+            else:
+                print("- "*30,"\nStarting count for runner-up")
+
         # ----------------------------------------------------------------------
         # Tabulation:
         # ----------------------------------------------------------------------
@@ -60,6 +67,13 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
         for r in range(maxscore,-1,-1):
             Score += r * S[r]
+
+        if verbose > 2:
+            print("\nFull Pairwise Array, step", seat+1)
+            print("     [ " + " | ".join(cnames[cands]) + " ]")
+            for c, row in zip(cnames[cands],A):
+                n = len(row)
+                print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
 
         # Determine the seat winner using sorted margins elimination:
         # Seat the winner, then eliminate from candidates for next count
@@ -85,29 +99,32 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/numvotes_orig)*100))
         factor = 0.0
         v = 0
-        if winsum >= quota:
+        winscores = ballots[...,winner]
+        if winsum > quota:
             # Where possible, use score-based scaling
             remove = quota/winsum
-
-            for r in range(1,maxscorep1):
-                factor = 1.0 - beta[r]*remove
-                weights = np.where(ballots[:,winner]==r, factor*weights, weights)
+            weights = np.multiply(1. - (winscores/maxscore)*remove, weights)
+            factor = 1. - remove
 
         else:
-            # Otherwise, total scaled score is less than one quota, so default to Bucklin scaling:
+            # Otherwise, successively raise fractional scores to full approval
+            # until the quota is reached
+            ss = S[...,permwinner] * np.arange(maxscorep1) / float(maxscore)
+
             winsum = 0
             v = 1
             for r in range(maxscore,0,-1):
-                winsum += S[r][permwinner]
+                winsum = S[r:,permwinner].sum() + ss[:r].sum()
                 if winsum > quota:
                     v = r
                     break
 
-            if winsum >= quota:
-                factor = (1.0 - (quota/winsum))
-                weights = np.where(ballots[:,winner]>=v, factor*weights, weights)
+            if winsum > quota:
+                remove = quota/winsum
+                factor = 1. - remove
+                weights = np.multiply(1. - (np.where(winscores>=v,maxscore,winscores)/maxscore)*remove, weights)
             else:
-                weights = np.where(ballots[:,winner]>0, 0, weights)
+                weights = np.where(ballots[...,winner]>0, 0, weights)
 
         numvotes = weights.sum()
 
@@ -117,7 +134,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
             print(winsum_description)
             if (v > 0):
                 print("\t*** Winner {}'s score below quota. ".format(cnames[winner]))
-                print("\t*** Backup score: {}% rate winner >= {}".format(myfmt(winsum/numvotes_orig*100),v))
+                print("\t*** Backup score: {}%, after elevating rates >= {}".format(myfmt(winsum/numvotes_orig*100),v))
             print("\tReweighting factor:", myfmt(factor))
             print("\tPercentage of vote remaining after reweighting: {}%\n".format(myfmt((numvotes / numvotes_orig) * 100.)))
 
@@ -143,6 +160,14 @@ def main():
     args = parser.parse_args()
 
     ballots, weights, cnames = csvtoballots(args.inputfile)
+
+    if args.verbose > 3:
+        # Figure out the width of the weight field, use it to create the format
+        ff = '\t{{:{}d}}:'.format(int(log10(weights.max())) + 1)
+
+        print("Ballots:\n\t{}, {}".format('weight',','.join(cnames)))
+        for ballot, w in zip(ballots,weights):
+            print(ff.format(w),ballot)
 
     winners = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
 
