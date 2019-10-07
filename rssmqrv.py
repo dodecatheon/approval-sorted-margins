@@ -1,13 +1,16 @@
 #!/usr/bin/env python
 """\
-qssmrv -- Quota-based Ranked Score Sorted Margins Reweighted Voting --\n\n
+rssmqrv -- Ranked Score Sorted Margins Quota-based Reweighted Voting --\n\n
 
 Given a CSV file of weighted score ballots, seat M winners with
 Droop-proportional representation.
 
 Each seat is chosen using Ranked Score Sorted Margins (a Condorcet completion method),
-then the ballots are reweighted proportionally to their score for the seat 
+then the ballots are reweighted proportionally to their total score for the seat 
 winner.
+
+If score sum does not exceed a quota, top scores are successively elevated to maxscore
+until either quota is exceeded or non-zero scores are exhausted.
 """
 from csvtoballots import csvtoballots
 from asm import sorted_margins, myfmt
@@ -105,6 +108,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
             ncands -= 1
 
         # Scale weights by proportion of Winner's score that needs to be removed
+        # NOTE:  fractions are adjusted to avoid division by maxscore as much as possible.
         winsum = Score[permwinner]
         winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/
                                                                                         maxscore/
@@ -150,10 +154,10 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                                                                                            maxscore/
                                                                                            numvotes_orig)*100),v))
             print("\tReweighting factor:", myfmt(factor))
-            print("\tPercentage of vote remaining after reweighting: {}%\n".format(myfmt((numvotes/
+            print("\tPercentage of vote remaining after reweighting: {}%".format(myfmt((numvotes/
                                                                                           numvotes_orig) * 100)))
             if seat == numseats:
-                print("\tPairwise result of Seat {} winner vs. Runner-up:".format(seat))
+                print("\tSeat {} winner vs. Runner-up in Seat {} contest:".format(seat,seat))
                 w_name = cnames[winners[-1]]
                 r_name = cnames[winner]
                 w_votes = X_vs_Y[winner]
@@ -164,12 +168,11 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                     comp_sign = "<"
                 else:
                     comp_sign = "=="
-                print("\t{}{}{}: {} {} {}".format(w_name,
-                                                  comp_sign,
-                                                  r_name,
-                                                  w_votes,
-                                                  comp_sign,
-                                                  r_votes))
+                print("\t{}:{} {} {}:{}".format(w_name,
+                                                myfmt(w_votes),
+                                                comp_sign,
+                                                r_name,
+                                                myfmt(r_votes)))
 
         if (numvotes <= (quota + numvotes_orig/1000.) ):
             break
