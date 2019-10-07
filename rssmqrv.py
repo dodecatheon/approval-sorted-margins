@@ -86,6 +86,12 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         winner = cands[permwinner]
         if (seat == numseats):
             runner_up = winner
+        else:
+            # Save pairwise votes for the most recent non-runner-up seat winner
+            X_vs_Y = np.zeros((numcands))
+            Y_vs_X = np.zeros((numcands))
+            X_vs_Y[cands] = A[permwinner]
+            Y_vs_X[cands] = A[...,permwinner]
 
         if verbose:
             if (seat < numseats):
@@ -99,34 +105,36 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
             ncands -= 1
 
         # Scale weights by proportion of Winner's score that needs to be removed
-        winsum = Score[permwinner] / maxscore
-        winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/numvotes_orig)*100))
+        winsum = Score[permwinner]
+        winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/
+                                                                                        maxscore/
+                                                                                        numvotes_orig)*100))
         factor = 0.0
         v = 0
         winscores = ballots[...,winner]
-        if winsum > quota:
+        if winsum > quota*maxscore:
             # Where possible, use score-based scaling
             remove = quota/winsum
-            weights = np.multiply(1. - (winscores/maxscore)*remove, weights)
-            factor = 1. - remove
+            weights = np.multiply(1. - winscores*remove, weights)
+            factor = 1. - remove*maxscore
 
         else:
             # Otherwise, successively raise fractional scores to full approval
             # until the quota is reached
-            ss = np.multiply(np.arange(maxscorep1)/maxscore,S[...,permwinner])
+            ss = np.multiply(np.arange(maxscorep1),S[...,permwinner])
 
             winsum = 0
             v = 1
             for r in range(maxscore,0,-1):
-                winsum = S[r:,permwinner].sum() + ss[:r].sum()
-                if winsum > quota:
+                winsum = maxscore*S[r:,permwinner].sum() + ss[:r].sum()
+                if winsum > quota*maxscore:
                     v = r
                     break
 
-            if winsum > quota:
+            if winsum > quota*maxscore:
                 remove = quota/winsum
-                factor = 1. - remove
-                weights = np.multiply(1. - (np.where(winscores>=v,maxscore,winscores)/maxscore)*remove, weights)
+                factor = 1. - remove*maxscore
+                weights = np.multiply(1. - np.where(winscores>=v,maxscore,winscores)*remove, weights)
             else:
                 weights = np.where(ballots[...,winner]>0, 0, weights)
 
@@ -138,11 +146,32 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
             print(winsum_description)
             if (v > 0):
                 print("\t*** Winner {}'s score below quota. ".format(cnames[winner]))
-                print("\t*** Backup score: {}%, after elevating rates >= {}".format(myfmt(winsum/numvotes_orig*100),v))
+                print("\t*** Backup score: {}%, after elevating rates >= {}".format(myfmt((winsum/
+                                                                                           maxscore/
+                                                                                           numvotes_orig)*100),v))
             print("\tReweighting factor:", myfmt(factor))
-            print("\tPercentage of vote remaining after reweighting: {}%\n".format(myfmt((numvotes / numvotes_orig) * 100.)))
+            print("\tPercentage of vote remaining after reweighting: {}%\n".format(myfmt((numvotes/
+                                                                                          numvotes_orig) * 100)))
+            if seat == numseats:
+                print("\tPairwise result of Seat {} winner vs. Runner-up:".format(seat))
+                w_name = cnames[winners[-1]]
+                r_name = cnames[winner]
+                w_votes = X_vs_Y[winner]
+                r_votes = Y_vs_X[winner]
+                if w_votes > r_votes:
+                    comp_sign = ">"
+                elif w_votes < r_votes:
+                    comp_sign = "<"
+                else:
+                    comp_sign = "=="
+                print("\t{}{}{}: {} {} {}".format(w_name,
+                                                  comp_sign,
+                                                  r_name,
+                                                  w_votes,
+                                                  comp_sign,
+                                                  r_votes))
 
-        if (numvotes <= (quota + numvotes_orig*0.001) ):
+        if (numvotes <= (quota + numvotes_orig/1000.) ):
             break
 
     return(winners, runner_up)
