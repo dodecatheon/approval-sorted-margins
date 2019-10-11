@@ -124,9 +124,9 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         # Scale weights by proportion of Winner's score that needs to be removed
         # NOTE:  fractions are adjusted to avoid division by maxscore as much as possible.
         winsum = Score[permwinner]
-        winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/
-                                                                                        maxscore/
-                                                                                        numvotes_orig)*100))
+        winsum_description = "\tWinner's score % before reweighting:  {}%".format(myfmt((winsum/
+                                                                                         maxscore/
+                                                                                         numvotes_orig)*100))
         print("Winner's normalized score: ", myfmt(winsum / maxscore))
         factor = 0.0
         v = 0
@@ -170,21 +170,22 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                               for j, f in zip(scorerange[-1:0:-1],
                                               S[-1:0:-1,permwinner])])))
             print("After reweighting ballots:")
-            print("\tQuota: {}%".format(myfmt(quota/numvotes_orig*100)))
+            print("\tQuota:  {}%".format(myfmt(quota/numvotes_orig*100)))
             print(winsum_description)
             if (v > 0):
-                print("\t*** Winner {}'s score below quota. ".format(cnames[winner]))
-                print("\t*** Backup score: {}%, after elevating rates >= {}".format(myfmt((winsum/
+                print("\t*** Winner {}'s score below quota.".format(cnames[winner]))
+                print("\t*** Backup score:  {}%, after elevating rates >= {}".format(myfmt((winsum/
                                                                                            maxscore/
                                                                                            numvotes_orig)*100),v))
-            print("\tReweighting factors[1:maxscore]: ", end="")
+            print("\tReweighting factor per rating:  ", end="")
             if (factor > 0):
-                print(", ".join(["{}:{}".format(j,myfmt(f)) for j, f in zip(scorerange[1:],
-                                                                            factors[1:])]))
+                print(", ".join(["{}:{}".format(j,myfmt(f))
+                                 for j, f in zip(scorerange[-1:0:-1],
+                                                 factors[-1:0:-1])]))
             else:
                 print(factor)
 
-            print("\tPercentage of vote remaining after reweighting: {}%".format(myfmt((numvotes/
+            print("\tPercentage of vote remaining after reweighting:  {}%".format(myfmt((numvotes/
                                                                                         numvotes_orig) * 100)))
             if seat == numseats:
                 print("\tSeat {} winner vs. Runner-up in Seat {} contest:".format(seat,seat))
