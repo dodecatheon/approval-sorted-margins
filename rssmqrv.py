@@ -29,12 +29,12 @@ def RSSM(Score,A,cnames,verbose=0):
     ranking = Score.argsort()[::-1] # Seed the ranking using Score
     sorted_margins(ranking,Score,(A.T > A),cnames,verbose=verbose)
     if verbose > 0:
-        print("[RSSM] Winner vs. Runner-up pairwise result:")
-        print("\t{}:{} >= {}:{}".format(cnames[ranking[0]],
-                                        myfmt(A[ranking[0],ranking[1]]),
-                                        cnames[ranking[1]],
-                                        myfmt(A[ranking[1],ranking[0]])))
-    return(ranking)
+        print('[RSSM] Winner vs. Runner-up pairwise result: ',
+              '{}:{} >= {}:{}'.format(cnames[ranking[0]],
+                                      myfmt(A[ranking[0],ranking[1]]),
+                                      cnames[ranking[1]],
+                                      myfmt(A[ranking[1],ranking[0]])))
+        return(ranking)
 
 def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
     """Run RSSM to elect <numseats> winners in a Droop proportional multiwnner election"""
@@ -165,7 +165,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         factor_array.append(list(factors))
 
         if verbose:
-            print("Winner's sums per rating : ",
+            print("Winner's votes per rating: ",
                   (", ".join(["{}:{}".format(j,myfmt(f))
                               for j, f in zip(scorerange[-1:0:-1],
                                               S[-1:0:-1,permwinner])])))
