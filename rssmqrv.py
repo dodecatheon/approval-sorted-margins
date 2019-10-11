@@ -209,13 +209,16 @@ def main():
     parser.add_argument("-m", "--seats", type=int,
                         default=1,
                         help="Number of seats [default: 1]")
+    parser.add_argument("-t", "--filetype", type=int,
+                        default=0,
+                        help="CSV file type.  0 = Scores, 1 = RCV [default: 0]")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity [default: 0]")
 
     args = parser.parse_args()
 
-    ballots, weights, cnames = csvtoballots(args.inputfile)
+    ballots, weights, cnames = csvtoballots(args.inputfile,ftype=args.filetype)
 
     print("- "*30)
     print("RANKED SCORE, SORTED MARGINS, QUOTA-BASED REWEIGHTED VOTING (RSSMQRV)")
