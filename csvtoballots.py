@@ -27,13 +27,13 @@ def csvtoballots(filename, ftype=0):
                             quoting=csv.QUOTE_ALL, skipinitialspace=True)
 
         if ftype == 0:
-	        # Default filetype is scores:
-	        # First line is [weight,]<Comma-separated list of candidate names>
-	        # Subsequent lines are [weight,]<Comma-separated scores>
+            # Default filetype is scores:
+            # First line is [weight,]<Comma-separated list of candidate names>
+            # Subsequent lines are [weight,]<Comma-separated scores>
   
-	        # Read the csv file's cnames to find number of candidates
+            # Read the csv file's cnames to find number of candidates
 
-	        # First row is cnames
+            # First row is cnames
             cnames = np.array(next(reader))
             for i, name in enumerate(cnames):
                 cnames[i] = name.strip()
