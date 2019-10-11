@@ -46,6 +46,8 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
     runner_up = -1
 
+    factor_array = []
+
     for seat in range(numseats+1):
 
         if verbose>0:
@@ -116,12 +118,13 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         factor = 0.0
         v = 0
         winscores = ballots[...,winner]
+        scorerange = np.arange(maxscorep1)
         if winsum > quota*maxscore:
             # Where possible, use score-based scaling
             remove = quota/winsum
             weights = np.multiply(1. - winscores*remove, weights)
             factor = 1. - remove*maxscore
-
+            factors = 1.0 - scorerange*remove
         else:
             # Otherwise, successively raise fractional scores to full approval
             # until the quota is reached
@@ -139,10 +142,14 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                 remove = quota/winsum
                 factor = 1. - remove*maxscore
                 weights = np.multiply(1. - np.where(winscores>=v,maxscore,winscores)*remove, weights)
+                factors = 1.0 - np.where(scorerange<v,scorerange,maxscore)*remove
             else:
                 weights = np.where(ballots[...,winner]>0, 0, weights)
+                factors = np.zeros((maxscorep1))
 
         numvotes = weights.sum()
+
+        factor_array.append(list(factors))
 
         if verbose:
             print("After reweighting ballots:")
@@ -153,9 +160,15 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                 print("\t*** Backup score: {}%, after elevating rates >= {}".format(myfmt((winsum/
                                                                                            maxscore/
                                                                                            numvotes_orig)*100),v))
-            print("\tReweighting factor:", myfmt(factor))
+            print("\tReweighting factors[1:maxscore]: ", end="")
+            if (factor > 0):
+                print(", ".join(["{}:{}".format(j,myfmt(f)) for j, f in zip(scorerange[1:],
+                                                                            factors[1:])]))
+            else:
+                print(factor)
+
             print("\tPercentage of vote remaining after reweighting: {}%".format(myfmt((numvotes/
-                                                                                          numvotes_orig) * 100)))
+                                                                                        numvotes_orig) * 100)))
             if seat == numseats:
                 print("\tSeat {} winner vs. Runner-up in Seat {} contest:".format(seat,seat))
                 w_name = cnames[winners[-1]]
@@ -176,6 +189,13 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
 
         if (numvotes <= (quota + numvotes_orig/1000.) ):
             break
+
+    if verbose > 1 and numseats > 1:
+        print("- "*30 + "\nReweighting factors for all seat winners:")
+        for w, factors in zip(winners,factor_array):
+            print(" {} |".format(cnames[w]),
+                  ", ".join(["{}:{}".format(j,myfmt(f)) for j, f in zip(scorerange[1:],
+                                                                        factors[1:])]))
 
     return(winners, runner_up)
 
