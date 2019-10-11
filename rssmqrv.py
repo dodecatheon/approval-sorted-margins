@@ -41,9 +41,8 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
     numballots, numcands = np.shape(ballots)
     ncands = numcands
 
-    numvotes = sum(weights)
-    weights_orig = np.array(weights)
-    numvotes_orig = sum(weights_orig)
+    numvotes = weights.sum()
+    numvotes_orig = float(numvotes)  # Force a copy
 
     quota = droopquota(numvotes,numseats)
 
@@ -68,6 +67,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                 print("- "*30,"\nStarting count for seat", seat+1)
             else:
                 print("- "*30,"\nStarting count for runner-up")
+            print("Number of votes:",myfmt(numvotes))
 
         # ----------------------------------------------------------------------
         # Tabulation:
@@ -80,12 +80,12 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         T = np.zeros((ncands))
         for ballot, w in zip(ballots,weights):
             permballot = ballot[cands]
-            for r in range(maxscore,0,-1):
+            for r in range(1,maxscorep1):
                 rscores = np.where(permballot==r,w,0)
                 S[r]  += rscores
                 A     += np.multiply.outer(rscores,np.where(permballot<r,1,0))
 
-        for r in range(maxscore,-1,-1):
+        for r in range(1,maxscorep1):
             Score += r * S[r]
 
         if verbose > 2:
@@ -127,6 +127,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         winsum_description = "\tWinner's score % before reweighting: {}%".format(myfmt((winsum/
                                                                                         maxscore/
                                                                                         numvotes_orig)*100))
+        print("Winner's normalized score: ", myfmt(winsum / maxscore))
         factor = 0.0
         v = 0
         winscores = ballots[...,winner]
@@ -164,6 +165,10 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
         factor_array.append(list(factors))
 
         if verbose:
+            print("Winner's sums per rating : ",
+                  (", ".join(["{}:{}".format(j,myfmt(f))
+                              for j, f in zip(scorerange[-1:0:-1],
+                                              S[-1:0:-1,permwinner])])))
             print("After reweighting ballots:")
             print("\tQuota: {}%".format(myfmt(quota/numvotes_orig*100)))
             print(winsum_description)
