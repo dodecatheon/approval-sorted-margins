@@ -23,8 +23,15 @@ from math import log10
 def droopquota(n,m):
     return(n/(m+1))
 
-def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
+def RSSM(Score,A,cnames,verbose=0):
+    """"The basic Ranked Score Sorted Margins method, starting from
+    non-normalized scores and the pairwise array"""
+    ranking = Score.argsort()[::-1] # Seed the ranking using Score
+    sorted_margins(ranking,Score,(A.T > A),cnames,verbose=verbose)
+    return(ranking)
 
+def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
+    """Run RSSM to elect <numseats> winners in a Droop proportional multiwnner election"""
     numballots, numcands = np.shape(ballots)
     ncands = numcands
 
@@ -83,12 +90,11 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                 print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
 
         # Determine the seat winner using sorted margins elimination:
-        # Seat the winner, then eliminate from candidates for next count
-
-        ranking = Score.argsort()[::-1] # Seed the ranking using Score
-        sorted_margins(ranking,Score,(A.T > A),cnames[cands],verbose=verbose)
-        permwinner = ranking[0]
+        permranking = RSSM(Score,A,cnames[cands],verbose=verbose)
+        permwinner = permranking[0]
         winner = cands[permwinner]
+
+        # Seat the winner, then eliminate from candidates for next count
         if (seat == numseats):
             runner_up = winner
         else:

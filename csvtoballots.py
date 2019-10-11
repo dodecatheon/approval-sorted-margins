@@ -91,7 +91,7 @@ def csvtoballots(filename, ftype=0):
             csvfile.seek(0)
             top = next(reader)
             for row,b in zip(reader,ballots):
-	            for j, r in enumerate(row):
+                for j, r in enumerate(row):
                     rr = '{}'.format(r)  # standardize quote formatting
                     if rr not in nocountset:
                         b[candindex[rr]] = 10 - j
