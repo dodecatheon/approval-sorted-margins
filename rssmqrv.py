@@ -28,6 +28,12 @@ def RSSM(Score,A,cnames,verbose=0):
     non-normalized scores and the pairwise array"""
     ranking = Score.argsort()[::-1] # Seed the ranking using Score
     sorted_margins(ranking,Score,(A.T > A),cnames,verbose=verbose)
+    if verbose > 0:
+        print("[RSSM] Winner vs. Runner-up pairwise result:")
+        print("\t{}:{} >= {}:{}".format(cnames[ranking[0]],
+                                        myfmt(A[ranking[0],ranking[1]]),
+                                        cnames[ranking[1]],
+                                        myfmt(A[ranking[1],ranking[0]])))
     return(ranking)
 
 def rssmqrv(ballots, weights, cnames, numseats, verbose=0):

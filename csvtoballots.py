@@ -94,7 +94,7 @@ def csvtoballots(filename, ftype=0):
                 for j, r in enumerate(row):
                     rr = '{}'.format(r)  # standardize quote formatting
                     if rr not in nocountset:
-                        b[candindex[rr]] = 10 - j
+                        b[candindex[rr]] = 5 - j
             weight = np.ones((len(ballots)),dtype=int)
 
     return(ballots, weight, cnames)
