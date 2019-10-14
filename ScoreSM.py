@@ -1,31 +1,120 @@
 #!/usr/bin/env python
 """\
-rssmqrv -- Ranked Score Sorted Margins Quota-based Reweighted Voting --\n\n
+ScoreSMQRV -- Score Sorted Margins Quota-based Reweighted Voting --\n\n
 
 Given a CSV file of weighted score ballots, seat M winners with
-Droop-proportional representation.
+Droop-proportional representation.  If M is not specified, the ScoreSM single
+winner is found.
 
-Each seat is chosen using Ranked Score Sorted Margins (a Condorcet completion method),
+Each seat is chosen using Score Sorted Margins (a Condorcet completion method),
 then the ballots are reweighted proportionally to their total score for the seat 
 winner.
 
-If score sum does not exceed a quota, top scores are successively elevated to maxscore
-until either quota is exceeded or non-zero scores are exhausted.
+If a seat-winner's score sum does not exceed the quota, top scores are
+successively elevated to maxscore until either quota is exceeded or
+non-zero scores are exhausted.  If the resulting total approval score
+is still less than the quota, a runner-up is determined.
+
 """
 from csvtoballots import csvtoballots
-from asm import sorted_margins, myfmt
 import argparse
 import sys
 import os
 import numpy as np
 from math import log10
+from collections import deque
 
 def droopquota(n,m):
     return(n/(m+1))
 
-def RSSM(Score,A,cnames,verbose=0):
-    """"The basic Ranked Score Sorted Margins method, starting from
-    non-normalized scores and the pairwise array"""
+def myfmt(x):
+    if x > 0:
+        fmt = "{:." + "{}".format(int(log10(x))+5) + "g}"
+    else:
+        fmt = "{:.4g}"
+    return fmt.format(x)
+
+def smith_from_losses(losses,cands):
+    sum_losses = losses.sum(axis=1)
+    min_losses = sum_losses.min()
+
+    # Initialize Smith set and queue
+    smith = set(np.compress(sum_losses==min_losses,cands))
+    queue = deque(smith)
+
+    # Loop until queue is empty
+    while (len(queue) > 0):
+        # pop first item on queue
+        c = queue.popleft()
+        beats_c = np.compress(losses[c],cands)
+        # for each candidate who defeats current candidate in Smith,
+        # add that candidate to Smith and stick them on the end of the
+        # queue
+        for d in beats_c:
+            if d not in smith:
+                smith.add(d)
+                queue.append(d)
+    return(smith)
+
+# Performs sorted margins using a generic metric seed, based on a loss_array like A.T > A
+def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
+    nswaps = 0
+    # Loop until no pairs are out of order pairwise
+    n = len(ranking)
+    ncands = len(metric)
+    maxdiff = metric.max() - metric.min() + 1
+    if verbose > 1:
+        print(". "*30)
+        print("Showing Sorted Margin iterations, starting from seeded ranking:")
+        print('\t{}\n'.format(' > '.join(['{}:{}'.format(cnames[c],myfmt(metric[c])) for c in ranking])))
+    while True:
+        apprsort = metric[ranking]
+        apprdiff = []
+        outoforder = []
+        mindiffval = maxdiff
+        mindiff = ncands
+        for i in range(1,n):
+            im1 = i - 1
+            c_i = ranking[i]
+            c_im1 = ranking[im1]
+            if (loss_array[c_im1,c_i]):
+                outoforder.append((c_im1,c_i))
+                apprdiff.append(apprsort[im1] - apprsort[i])
+                if apprdiff[-1] < mindiffval:
+                    mindiff = im1
+                    mindiffval = apprdiff[-1]
+        # terminate when no more pairs are out of order pairwise:
+        if (len(outoforder) == 0) or (mindiff == ncands):
+            break
+
+        # Do the swap
+        nswaps += 1
+        ranking[range(mindiff,mindiff+2)] = ranking[range(mindiff+1,mindiff-1,-1)]
+
+        if verbose > 1:
+            print("Out-of-order candidate pairs, with margins:")
+            for k, pair in enumerate(outoforder):
+                c_im1, c_i = pair
+                name_im1 = cnames[c_im1]
+                name_i = cnames[c_i]
+                print('\t{} < {}, margin = {}'.format(name_im1,name_i,myfmt(apprdiff[k])))
+            print('\nSwap #{}: swapping candidates {} and {} with minimum margin {}'.format(
+                  nswaps,cnames[ranking[mindiff]],cnames[ranking[mindiff+1]],myfmt(mindiffval)))
+            print('\t{}\n'.format(' > '.join([cnames[c] for c in ranking])))
+
+    if verbose > 0:
+        smith = smith_from_losses(np.where(loss_array, 1, 0),np.arange(ncands))
+        print(". "*30)
+        if len(smith) == 1:
+            print("[SORTED MARGINS] Pairwise winner == Sorted Margins winner: ", cnames[ranking[0]])
+        else:
+            print("[SORTED MARGINS] No pairwise winner; Smith set:", [cnames[c] for c in ranking if c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
+
+    return
+
+def ScoreSM(Score,A,cnames,verbose=0):
+    """"The basic Score Sorted Margins method (rankings inferred from ratings),
+    starting from non-normalized scores and the pairwise array"""
     ranking = Score.argsort()[::-1] # Seed the ranking using Score
     sw = ranking[0]
     sorted_margins(ranking,Score,(A.T > A),cnames,verbose=verbose)
@@ -37,24 +126,24 @@ def RSSM(Score,A,cnames,verbose=0):
         sw_name = cnames[sw]
         w_score = Score[w]
         sw_score = Score[sw]
-        print('[RSSM] Winner vs. Runner-up pairwise result: ',
+        print('[ScoreSM] Winner vs. Runner-up pairwise result: ',
               '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,ru]),
                                       ru_name,myfmt(A[ru,w])))
         if w == sw:
-            print('[RSSM] Winner has highest score')
+            print('[ScoreSM] Winner has highest score')
         else:
             if sw != ru:
-                print('[RSSM] Winner vs. highest Scorer, pairwise: ',
+                print('[ScoreSM] Winner vs. highest Scorer, pairwise: ',
                       '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,sw]),
                                               sw_name,myfmt(A[sw,w])))
-            print('[RSSM] Winner vs. highest Scorer, score: ',
+            print('[ScoreSM] Winner vs. highest Scorer, score: ',
                   '{}:{} <= {}:{}'.format(w_name,myfmt(w_score),
                                           sw_name,myfmt(sw_score)))
 
     return(ranking)
 
-def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
-    """Run RSSM to elect <numseats> winners in a Droop proportional multiwnner election"""
+def ScoreSMQRV(ballots, weights, cnames, numseats, verbose=0):
+    """Run ScoreSM to elect <numseats> winners in a Droop proportional multiwnner election"""
     numballots, numcands = np.shape(ballots)
     ncands = numcands
 
@@ -113,7 +202,7 @@ def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
                 print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
 
         # Determine the seat winner using sorted margins elimination:
-        permranking = RSSM(Score,A,cnames[cands],verbose=verbose)
+        permranking = ScoreSM(Score,A,cnames[cands],verbose=verbose)
         permwinner = permranking[0]
         winner = cands[permwinner]
 
@@ -244,19 +333,22 @@ def main():
     parser.add_argument("-m", "--seats", type=int,
                         default=1,
                         help="Number of seats [default: 1]")
-    parser.add_argument("-t", "--filetype", type=int,
-                        default=0,
-                        help="CSV file type.  0 = Scores, 1 = RCV [default: 0]")
+    parser.add_argument("-t", "--filetype", type=str,
+                        choices=["score", "rcv"],
+                        default="score",
+                        help="CSV file type, either 'score' or 'rcv' [default: 'score']")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity [default: 0]")
 
     args = parser.parse_args()
 
-    ballots, weights, cnames = csvtoballots(args.inputfile,ftype=args.filetype)
+    ftype={'score':0, 'rcv':1}[args.filetype]
+    
+    ballots, weights, cnames = csvtoballots(args.inputfile,ftype=ftype)
 
     print("- "*30)
-    print("RANKED SCORE, SORTED MARGINS, QUOTA-BASED REWEIGHTED VOTING (RSSMQRV)")
+    print("SCORE SORTED MARGINS, QUOTA-BASED REWEIGHTED VOTING (ScoreSMQRV)")
     if args.verbose > 3:
         print("- "*30)
         # Figure out the width of the weight field, use it to create the format
@@ -266,7 +358,7 @@ def main():
         for ballot, w in zip(ballots,weights):
             print(ff.format(w),ballot)
 
-    winners, runner_up = rssmqrv(ballots, weights, cnames, args.seats, verbose=args.verbose)
+    winners, runner_up = ScoreSMQRV(ballots, weights, cnames, args.seats, verbose=args.verbose)
     print("- "*30)
     
     if args.seats == 1:
@@ -274,7 +366,7 @@ def main():
     else:
         winfmt = "{} winners".format(args.seats)
 
-    print("\nRSSMQRV returns {}:".format(winfmt),", ".join([cnames[q] for q in winners]))
+    print("\nScoreSMQRV returns {}:".format(winfmt),", ".join([cnames[q] for q in winners]))
 
     if runner_up >= 0:
         print("Runner-up: ", cnames[runner_up])
