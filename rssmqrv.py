@@ -27,14 +27,31 @@ def RSSM(Score,A,cnames,verbose=0):
     """"The basic Ranked Score Sorted Margins method, starting from
     non-normalized scores and the pairwise array"""
     ranking = Score.argsort()[::-1] # Seed the ranking using Score
+    sw = ranking[0]
     sorted_margins(ranking,Score,(A.T > A),cnames,verbose=verbose)
     if verbose > 0:
+        w  = ranking[0]
+        ru = ranking[1]
+        w_name = cnames[w]
+        ru_name = cnames[ru]
+        sw_name = cnames[sw]
+        w_score = Score[w]
+        sw_score = Score[sw]
         print('[RSSM] Winner vs. Runner-up pairwise result: ',
-              '{}:{} >= {}:{}'.format(cnames[ranking[0]],
-                                      myfmt(A[ranking[0],ranking[1]]),
-                                      cnames[ranking[1]],
-                                      myfmt(A[ranking[1],ranking[0]])))
-        return(ranking)
+              '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,ru]),
+                                      ru_name,myfmt(A[ru,w])))
+        if w == sw:
+            print('[RSSM] Winner has highest score')
+        else:
+            if sw != ru:
+                print('[RSSM] Winner vs. highest Scorer, pairwise: ',
+                      '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,sw]),
+                                              sw_name,myfmt(A[sw,w])))
+            print('[RSSM] Winner vs. highest Scorer, score: ',
+                  '{}:{} <= {}:{}'.format(w_name,myfmt(w_score),
+                                          sw_name,myfmt(sw_score)))
+
+    return(ranking)
 
 def rssmqrv(ballots, weights, cnames, numseats, verbose=0):
     """Run RSSM to elect <numseats> winners in a Droop proportional multiwnner election"""
