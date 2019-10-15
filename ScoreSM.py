@@ -7,7 +7,7 @@ Droop-proportional representation.  If M is not specified, the ScoreSM single
 winner is found.
 
 Each seat is chosen using Score Sorted Margins (a Condorcet completion method),
-then the ballots are reweighted proportionally to their total score for the seat 
+then the ballots are reweighted proportionally to their total score for the seat
 winner.
 
 If a seat-winner's score sum does not exceed the quota, top scores are
@@ -28,10 +28,10 @@ def droopquota(n,m):
     return(n/(m+1))
 
 def myfmt(x):
-    if x > 0:
+    if x > 1:
         fmt = "{:." + "{}".format(int(log10(x))+5) + "g}"
     else:
-        fmt = "{:.4g}"
+        fmt = "{:.5g}"
     return fmt.format(x)
 
 def smith_from_losses(losses,cands):
@@ -344,7 +344,7 @@ def main():
     args = parser.parse_args()
 
     ftype={'score':0, 'rcv':1}[args.filetype]
-    
+
     ballots, weights, cnames = csvtoballots(args.inputfile,ftype=ftype)
 
     print("- "*30)
@@ -360,7 +360,7 @@ def main():
 
     winners, runner_up = ScoreSMQRV(ballots, weights, cnames, args.seats, verbose=args.verbose)
     print("- "*30)
-    
+
     if args.seats == 1:
         winfmt = "1 winner"
     else:
