@@ -235,7 +235,7 @@ def ScoreSMQRV(ballots, weights, cnames, numseats, verbose=0):
                                                                                          numvotes_orig)*100))
         if verbose:
             print("Winner's normalized score: ", myfmt(winsum / maxscore))
-                
+
         factor = 0.0
         v = 0
         winscores = ballots[...,winner]
