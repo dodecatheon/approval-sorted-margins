@@ -142,7 +142,7 @@ def ScoreSM(Score,A,cnames,verbose=0):
 
     return(ranking)
 
-def ScoreSMQRV(ballots, weights, cnames, numseats, verbose=0):
+def ScoreSMQRV(ballots, weights, cnames, numseats, verbose=0, show_runnerup=False):
     """Run ScoreSM to elect <numseats> winners in a Droop proportional multiwnner election"""
     numballots, numcands = np.shape(ballots)
     ncands = numcands
@@ -313,6 +313,9 @@ def ScoreSMQRV(ballots, weights, cnames, numseats, verbose=0):
                                                 r_name,
                                                 myfmt(r_votes)))
 
+        if (not show_runnerup) and (numvotes <= (quota + numvotes_orig/1000.) ) :
+            break
+
     if verbose > 1 and numseats > 1:
         print("- "*30 + "\nReweighting factors for all seat winners:")
         for w, factors in zip(winners,factor_array):
@@ -336,6 +339,9 @@ def main():
                         choices=["score", "rcv"],
                         default="score",
                         help="CSV file type, either 'score' or 'rcv' [default: 'score']")
+    parser.add_argument("-r", "--runnerup", action='store_true',
+                        default=False,
+                        help="Always find runnerup [default: False]")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity [default: 0]")
@@ -357,7 +363,10 @@ def main():
         for ballot, w in zip(ballots,weights):
             print(ff.format(w),ballot)
 
-    winners, runner_up = ScoreSMQRV(ballots, weights, cnames, args.seats, verbose=args.verbose)
+    winners, runner_up = ScoreSMQRV(ballots, weights, cnames,
+                                    args.seats,
+                                    verbose=args.verbose,
+                                    show_runnerup=args.runnerup)
     print("- "*30)
 
     if args.seats == 1:
