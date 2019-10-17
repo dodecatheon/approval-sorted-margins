@@ -311,9 +311,6 @@ def ScoreSMQRV(ballots, weights, cnames, numseats, verbose=0):
                                                 r_name,
                                                 myfmt(r_votes)))
 
-        if (numvotes <= (quota + numvotes_orig/1000.) ):
-            break
-
     if verbose > 1 and numseats > 1:
         print("- "*30 + "\nReweighting factors for all seat winners:")
         for w, factors in zip(winners,factor_array):
