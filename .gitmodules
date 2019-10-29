@@ -1,0 +1,6 @@
+[submodule "rating-examples"]
+	path = rating-examples
+	url = git@github.com:dodecatheon/rating-examples.git
+[submodule "ballot_tools"]
+	path = ballot_tools
+	url = git@github.com:dodecatheon/ballot_tools.git

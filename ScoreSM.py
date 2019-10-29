@@ -16,7 +16,7 @@ non-zero scores are exhausted.  If the resulting total approval score
 is still less than the quota, a runner-up is determined.
 
 """
-from csvtoballots import csvtoballots
+from ballot_tools.csvtoballots import *
 import argparse
 import sys
 import os
