@@ -10,7 +10,7 @@ Condorcet-full//Condorcet-approved//Approval and Smith//Approval winners are inc
 """
 import numpy as np
 from csvtoballots import *
-from ScoreSM import sorted_margins, myfmt
+from ScoreSM import sorted_margins, myfmt, smith_from_losses
 from math import log10
 
 def asm(ballots, weight, cnames, cutoff=None, verbose=0):
