@@ -82,7 +82,12 @@ def ssm(ranking,Score,A,cnames,verbose=0):
 def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
     """Run ssm to elect <numseats> in a PR multiwinner election"""
     numballots, numcands = np.shape(ballots)
-    ncands = numcands
+    ncands = int(numcands) # force copy
+
+    if (numseats > ncands):
+        print("*** WARNING, # seats > # candidates! ***")
+        print("Resetting # seats to", ncands)
+        numseats = int(numcands)
 
     numvotes = weights.sum()
     numvotes_orig = float(numvotes)  # Force a copy
@@ -150,15 +155,16 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
 
             qcnames = cnames[qcands]
             Score_qc = Score[perm_qc]
-            permq_rating = list(zip(Score_qc,STotal[perm_qc],qtar[perm_qc]))
+            QTA = [S[qtar[c]:,c].sum() for c in perm_qc]
+            permq_rating = list(zip(Score_qc,STotal[perm_qc],qtar[perm_qc],QTA))
             permqranking = np.array(sorted([i for i in range(nqcands)],
                                            key=(lambda c:permq_rating[c]),
                                            reverse=True))
-
             permqwinner = permqranking[0]
 
             if verbose > 2:
                 print("From top quota score count, sorted ranking:")
+                print("\tCandidate: (TopQuotaScore,QTA_Score,QTA_Rating,QTA)")
                 permqtuples = [permq_rating[i] for i in permqranking]
                 print("\t" + ",\n\t".join(["{}:{}".format(c,s)
                                           for c, s in zip(cnames[permqranking],permqtuples)]))
