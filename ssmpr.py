@@ -38,7 +38,6 @@ the top quota score is the total score and thus reduces to single-winner SSM.
 Use the -s|--score-only option to skip sorted-margins and do only Sequential Monroe Voting.
 """
 import argparse
-from argparse import RawDescriptionHelpFormatter
 from ballot_tools.csvtoballots import *
 import numpy as np
 import sorted_margins as sm
@@ -269,9 +268,6 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
                              if f < 1.0]))
 
     return(winners)
-
-
-# call with: python test.py -h
 
 class SmartDescriptionFormatter(argparse.RawDescriptionHelpFormatter):
   #def _split_lines(self, text, width): # RawTextHelpFormatter, although function name might change depending on Python
