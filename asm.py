@@ -9,9 +9,8 @@ By default, the explicit approval cutoff is (maxscore - 1)/2 rounded down to nea
 Condorcet-full//Condorcet-approved//Approval and Smith//Approval winners are included for comparison.
 """
 import numpy as np
-from csvtoballots import *
-from ScoreSM import sorted_margins, myfmt, smith_from_losses
-from math import log10
+from ballot_tools.csvtoballots import *
+from sorted_margins import sorted_margins, myfmt, smith_from_losses
 
 def asm(ballots, weight, cnames, cutoff=None, verbose=0):
     "Approval Sorted Margins"
@@ -150,6 +149,7 @@ def test_asm(ballots,weight,cnames,cutoff=None,verbose=0):
 
 def main():
     import argparse
+    from math import log10
     parser = argparse.ArgumentParser(description=__doc__)
 
     parser.add_argument("-i", "--inputfile",

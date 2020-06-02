@@ -6,30 +6,29 @@ modification to Definitive Majority Choice (AKA Ranked Approval Voting).
 
 https://electowiki.org/wiki/Approval_Sorted_Margins
 
-Recently I've been putting more effort into a variant that applies Sorted
-Margins on a seed of Total Scores instead of Approval with cutoff. I think
-that with sufficient range, for example zero to 10, this approach gives
-virtually the same benefit as Approval Sorted Margins, with the advantage that
-it can be used in a form of Quota-based Score Reweighted Voting.
+Code for this, compared with other approval cutoff schemes, may be found
+in
 
-Therefore, I've developed the code in
+    asm.py
 
-    ScoreSM.py
+A variant that applies Sorted Margins on a seed of Total Scores, instead
+of Approval with cutoff, may be used in a form of Quota-based threshold
+Approval PR voting. This code can be found in 
 
-which will run Score Sorted Margins (ScoreSM) as a Droop Proportional
-multiwinner election.  The first candidate seated is always the single-winner
-ScoreSM winner.  If a seat winner does not have at least one quota of
-approval, ballots approving of the seat winner are reweighted to remove one
-quota, and a runner-up is found on the remaining reweighted ballots.
+    ssmpr.py
+
+which will run Score Sorted Margins as a multiwinner election.  By default, it is
+run with Hare quota. For Droop quota and some measure of Droop Proportionality,
+run it with one more seat than desired, then use the last seat as a runner-up.
 
 Example usage (add -v for verbose level 1, -vv for verbose level 2, etc.
 
-	ScoreSM.py -vv -i examples/rlg_approval_cutoff_3.csv
+	ssmpr.py -vv -i examples/rlg_approval_cutoff_3.csv
 
 Multiwinner, 9 seats:
 
-	ScoreSM.py -m 9 -vv -i examples/june2011.csv
+	ssmpr.py -m 9 -vv -i examples/june2011.csv
 
 RCV election in Minnesota, 2013:
 
-	ScoreSM.py -t rcv -vv -i examples/actual-mayoral-election.csv
+	ssmpr.py -t rcv -vv -i examples/actual-mayoral-election.csv
