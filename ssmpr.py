@@ -16,25 +16,29 @@ winner, based on the total approval at and above the quota threshold rating.
 Note that the score used for each seat is taken within the top quota of votes,
 as in Sequential Monroe. Here is how a top quota score is found for a particular candidate:
 
-Initialize the top quota score TQS[c] for candidate c to zero.
-Initialize the total approval TA[c] for candidate c to zero.
+\t* Initialize the top quota score TQS[c] for candidate c to zero.
+\t* Initialize the total approval TA[c] for candidate c to zero.
 
 Starting at rating r = MaxScore, add weighted ballots scoring c at r to TA[c]:
 
-   TA[c] += S[r,c]
+\tTA[c] += S[r,c]
 
 If TA[c] is less than the quota, add the appropriate amount of that score to TQS:
 
-   TQS[c] += r * S[r,c]
+\tTQS[c] += r * S[r,c]
 
 However, if the total approval at r now exceeds the quota, the top quota score receives
 only that portion of the score corresponding to the approval above the quota:
 
-   TQS[c] += r * (S[r,c] - (TA[c] - quota))
+\tTQS[c] += r * (S[r,c] - (TA[c] - quota))
 
 This top quota score is the metric used for sorted margins. On the last seat (Hare quota),
 the top quota score is the total score and thus reduces to single-winner SSM.
+
+Use the -s|--score-only option to skip sorted-margins and do only Sequential Monroe Voting.
 """
+import argparse
+from argparse import RawDescriptionHelpFormatter
 from ballot_tools.csvtoballots import *
 import numpy as np
 import sorted_margins as sm
@@ -49,7 +53,7 @@ def ssm(ranking,Score,A,cnames,verbose=0):
     # ranking = Score.argsort()[::-1] # Seed the ranking using Score
     sw = ranking[0]
     sm.sorted_margins(ranking,Score,A.T > A,cnames,verbose=verbose)
-    if verbose > 0:
+    if (verbose > 0) and (len(ranking)>1):
         w  = ranking[0]
         ru = ranking[1]
         w_name = cnames[w]
@@ -266,10 +270,34 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
 
     return(winners)
 
+
+# call with: python test.py -h
+
+class SmartDescriptionFormatter(argparse.RawDescriptionHelpFormatter):
+  #def _split_lines(self, text, width): # RawTextHelpFormatter, although function name might change depending on Python
+  def _fill_text(self, text, width, indent): # RawDescriptionHelpFormatter, although function name might change depending on Python
+    #print("splot",text)
+    if text.startswith('R|'):
+      paragraphs = text[2:].splitlines()
+      rebroken = [argparse._textwrap.wrap(tpar, width) for tpar in paragraphs]
+      #print(rebroken)
+      rebrokenstr = []
+      for tlinearr in rebroken:
+        if (len(tlinearr) == 0):
+          rebrokenstr.append("")
+        else:
+          for tlinepiece in tlinearr:
+            rebrokenstr.append(tlinepiece)
+      #print(rebrokenstr)
+      return '\n'.join(rebrokenstr) #(argparse._textwrap.wrap(text[2:], width))
+    # this is the RawTextHelpFormatter._split_lines
+    #return argparse.HelpFormatter._split_lines(self, text, width)
+    return argparse.RawDescriptionHelpFormatter._fill_text(self, text, width, indent)
+
 def main():
-    import argparse
     from math import log10
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=SmartDescriptionFormatter)
 
     parser.add_argument("-i", "--inputfile",
                         type=str,
@@ -296,7 +324,10 @@ def main():
     ballots, weights, cnames = csvtoballots(args.inputfile,ftype=ftype)
 
     print("- "*30)
-    print("SCORE SORTED MARGINS PR VOTING (quota threshold approval)")
+    if (args.score_only):
+        print("SEQUENTIAL MONROE VOTING")
+    else:
+        print("SCORE SORTED MARGINS PR VOTING (quota threshold approval)")
     if args.verbose > 3:
         print("- "*30)
         # Figure out the width of the weight field, use it to create the format
@@ -316,7 +347,12 @@ def main():
     else:
         winfmt = "{} winners".format(args.numseats)
 
-    print("\nSSMPR returns {}:".format(winfmt),", ".join([cnames[q] for q in winners]))
+    if args.score_only:
+        print("\nSMV results, ", end="")
+    else:
+        print("\nSSMPR results, ", end="")
+
+    print("{}:".format(winfmt),", ".join([cnames[q] for q in winners]))
 
 if __name__ == "__main__":
     main()
