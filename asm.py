@@ -12,7 +12,7 @@ import numpy as np
 from ballot_tools.csvtoballots import *
 from sorted_margins import sorted_margins, myfmt, smith_from_losses
 
-def asm(ballots, weight, cnames, cutoff=None, verbose=0):
+def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     "Approval Sorted Margins"
 
     nballots, ncands = np.shape(ballots)
@@ -22,27 +22,51 @@ def asm(ballots, weight, cnames, cutoff=None, verbose=0):
     maxscore = int(ballots.max())
     maxscorep1 = maxscore + 1
 
-    if cutoff == None:
-        cutoff = (maxscore - 1) // 2
+    if dcindex < 0:
+        if cutoff == None:
+            cutoff = (maxscore - 1) // 2
 
-    minapprove = cutoff + 1
-    # ----------------------------------------------------------------------
-    # Tabulation:
-    # ----------------------------------------------------------------------
-    # A: pairwise array, equal-rated-none
-    # B: Same as A, but only including ratings above cutoff
-    # T:  Total approval for candidate X
-    A = np.zeros((ncands,ncands))
-    B = np.zeros((ncands,ncands))
-    T = np.zeros((ncands))
-    for ballot, w in zip(ballots,weight):
-        for r in range(1,maxscorep1):
-            A += np.multiply.outer(np.where(ballot==r,w,0),
-                                   np.where(ballot<r ,1,0))
-        for r in range(minapprove,maxscorep1):
-            B += np.multiply.outer(np.where(ballot==r,w,-1),
-                                   np.where(ballot<r ,1,0))
-            T += np.where(ballot==r,w,0)
+        minapprove = cutoff + 1
+
+        # ----------------------------------------------------------------------
+        # Tabulation with cutoff level:
+        # ----------------------------------------------------------------------
+        # A: pairwise array, equal-rated-none
+        # B: Same as A, but only including ratings above cutoff
+        # T:  Total approval for candidate X
+        A = np.zeros((ncands,ncands))
+        B = np.zeros((ncands,ncands))
+        T = np.zeros((ncands))
+        for ballot, w in zip(ballots,weight):
+            for r in range(1,maxscorep1):
+                A += np.multiply.outer(np.where(ballot==r,w,0),
+                                       np.where(ballot<r ,1,0))
+            for r in range(minapprove,maxscorep1):
+                B += np.multiply.outer(np.where(ballot==r,w,-1),
+                                       np.where(ballot<r ,1,0))
+                T += np.where(ballot==r,w,0)
+    else:
+        # ----------------------------------------------------------------------
+        # Tabulation with explicit cutoff via disapproved candidate:
+        # ----------------------------------------------------------------------
+        # A: pairwise array, equal-rated-none
+        # B: Same as A, but only including ratings above cutoff
+        # T:  Total approval for candidate X
+        A = np.zeros((ncands,ncands))
+        B = np.zeros((ncands,ncands))
+        T = np.zeros((ncands))
+        for ballot, w in zip(ballots,weight):
+            if ballot[dcindex] > 0:
+                A[dcindex,dcindex] += w
+            for r in range(1,maxscorep1):
+                A += np.multiply.outer(np.where(ballot==r,w,0),
+                                       np.where(ballot<r ,1,0))
+            for r in range(ballot[dcindex]+1,maxscorep1):
+                B += np.multiply.outer(np.where(ballot==r,w,0),
+                                       np.where(ballot<r ,1,0))
+        # Approval totals = votes against the approval cutoff candidate
+        T = np.array(A[...,dcindex])
+        A[dcindex,dcindex] = 0.0
 
     # ----------------------------------------------------------------------
     # Rank and rating calculations:
@@ -59,7 +83,7 @@ def asm(ballots, weight, cnames, cutoff=None, verbose=0):
     ranking = np.array([c for c in T.argsort()[::-1] if c in smith])
     branking = np.array([c for c in T.argsort()[::-1] if c in bsmith])
 
-    sorted_margins(ranking,T,(A.T > A),cnames,verbose=verbose)
+    sorted_margins(ranking,T,(A.T > A),cnames,verbose=0)
     winner = ranking[0]
 
     # Put approval on diagonals
@@ -68,21 +92,29 @@ def asm(ballots, weight, cnames, cutoff=None, verbose=0):
 
     return(winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B)
  
-def test_asm(ballots,weight,cnames,cutoff=None,verbose=0):
+def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
     
-    winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B = asm(ballots,weight,cnames,cutoff=cutoff,verbose=0)
+    winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B = asm(ballots,weight,cnames,
+                                                                  cutoff=cutoff,
+                                                                  dcindex=dcindex,
+                                                                  verbose=verbose)
 
     cands = np.arange(ncands)
     nsmith = len(ranking)
     nbsmith = len(branking)
     approval_ranking = T.argsort()[::-1]
 
-    print("\nFull Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff))
+    if dcindex < 0:
+        cutoff_descr = cutoff
+    else:
+        cutoff_descr = cnames[dcindex]
+
+    print("\nFull Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff_descr))
     for row in A:
         print(row)
 
     if (nsmith > 1) and (nbsmith == 1):
-        print("\nApproval-only Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff))
+        print("\nApproval-only Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff_descr))
         for row in B:
             print(row)
 
@@ -160,7 +192,12 @@ def main():
                         type=int,
                         required=False,
                         default=None,
-                        help="Approval cutoff [default: None]")
+                        help="Approval cutoff rating [default: None]")
+    parser.add_argument("-d", "--disapproved_candidate",
+                        type=str,
+                        required=False,
+                        default=None,
+                        help="Approval cutoff candidate name [default: None]")
     parser.add_argument('-v',
                         '--verbose',
                         action='count',
@@ -170,6 +207,19 @@ def main():
 
     ballots, weight, cnames = csvtoballots(args.inputfile)
 
+    disapproved_candidate_index = -1
+
+    if not args.disapproved_candidate:
+        name_option = re.compile(r'((approval )*cutoff|disapprove|notb|nota|none of the (above|below))',
+                                 re.IGNORECASE)
+    else:
+        name_option = re.compile(args.disapproved_candidate,re.IGNORECASE)
+
+    for i, cn in enumerate(cnames):
+        if name_option.match(cn):
+            disapproved_candidate_index = i
+            break
+        
     # Figure out the width of the weight field, use it to create the format
     ff = '\t{{:{}d}}:'.format(int(log10(weight.max())) + 1)
 
@@ -177,7 +227,9 @@ def main():
     for ballot, w in zip(ballots,weight):
         print(ff.format(w),ballot)
 
-    test_asm(ballots, weight, cnames, cutoff=args.cutoff, verbose=args.verbose)
+    test_asm(ballots, weight, cnames,
+             cutoff=args.cutoff,
+             dcindex=disapproved_candidate_index, verbose=args.verbose)
 
 if __name__ == "__main__":
     main()
