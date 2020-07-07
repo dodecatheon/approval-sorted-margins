@@ -22,6 +22,18 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     maxscore = int(ballots.max())
     maxscorep1 = maxscore + 1
 
+    # ----------------------------------------------------------------------
+    # Tabulation setup:
+    # ----------------------------------------------------------------------
+    # A: pairwise array, equal-rated-none
+    # B: Same as A, but only including ratings above cutoff
+    # T:  Total approval for candidate X
+    # TaT: Tied-at-top votes
+    A = np.zeros((ncands,ncands))
+    B = np.zeros((ncands,ncands))
+    T = np.zeros((ncands))
+    TaT = np.zeros((ncands,ncands))
+
     if dcindex < 0:
         if cutoff == None:
             cutoff = (maxscore - 1) // 2
@@ -31,13 +43,9 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
         # ----------------------------------------------------------------------
         # Tabulation with cutoff level:
         # ----------------------------------------------------------------------
-        # A: pairwise array, equal-rated-none
-        # B: Same as A, but only including ratings above cutoff
-        # T:  Total approval for candidate X
-        A = np.zeros((ncands,ncands))
-        B = np.zeros((ncands,ncands))
-        T = np.zeros((ncands))
         for ballot, w in zip(ballots,weight):
+            TaT += np.multiply.outer(np.where(ballot==maxscore,w,0),
+                                     np.where(ballot==maxscore,1,0))
             for r in range(1,maxscorep1):
                 A += np.multiply.outer(np.where(ballot==r,w,0),
                                        np.where(ballot<r ,1,0))
@@ -49,13 +57,9 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
         # ----------------------------------------------------------------------
         # Tabulation with explicit cutoff via disapproved candidate:
         # ----------------------------------------------------------------------
-        # A: pairwise array, equal-rated-none
-        # B: Same as A, but only including ratings above cutoff
-        # T:  Total approval for candidate X
-        A = np.zeros((ncands,ncands))
-        B = np.zeros((ncands,ncands))
-        T = np.zeros((ncands))
         for ballot, w in zip(ballots,weight):
+            TaT += np.multiply.outer(np.where(ballot==maxscore,w,0),
+                                     np.where(ballot==maxscore,1,0))
             if ballot[dcindex] > 0:
                 A[dcindex,dcindex] += w
             for r in range(1,maxscorep1):
@@ -90,14 +94,21 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     A += np.diag(T)
     B += np.diag(T)
 
-    return(winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B)
+    return(winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B,TaT)
  
 def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
     
-    winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B = asm(ballots,weight,cnames,
-                                                                  cutoff=cutoff,
-                                                                  dcindex=dcindex,
-                                                                  verbose=verbose)
+    (winner,
+     tw,
+     ncands,
+     maxscore,
+     cutoff,
+     ranking,
+     branking,
+     T,
+     A,
+     B,
+     TaT) = asm(ballots,weight,cnames, cutoff=cutoff, dcindex=dcindex, verbose=verbose)
 
     cands = np.arange(ncands)
     nsmith = len(ranking)
@@ -113,13 +124,14 @@ def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
     for row in A:
         print(row)
 
+    print("\nTied-at-Top Pairwise Array:")
+    for row in TaT:
+        print(row)
+
     if (nsmith > 1) and (nbsmith == 1):
         print("\nApproval-only Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff_descr))
         for row in B:
             print(row)
-
-    Margins = np.multiply.outer(T,np.ones((ncands))) - np.multiply.outer(np.ones((ncands)),T)
-    Margins = np.where((A.T>A),0,Margins)
 
     print("\nApproval rankings:")
     print("\t{}".format(' > '.join([cnames[c] for c in approval_ranking])))
@@ -175,6 +187,23 @@ def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
         cname_i = cnames[c_i]
         cname_im1 = cnames[c_im1]
         print("\t{}>{}: {} > {}".format(cname_im1,cname_i,A[c_im1,c_i],A[c_i,c_im1]))
+
+    print("-----\n")
+    # Also print out full ICA-style FBC-compliant pairwise
+    full_ranking = T.argsort()[::-1]
+    sorted_margins(full_ranking,T,(A.T > (A + TaT)),cnames,verbose=verbose)
+    winner = full_ranking[0]
+    print("All candidates, ranked by FBC-compliant Approval Sorted Margins:")
+    print("\t{}".format(' > '.join([cnames[c] for c in full_ranking])))
+    print("\nFBC-ASM pairwise results for all candidates:")
+    for i in range(1,ncands):
+        im1 = i - 1
+        c_i = full_ranking[i]
+        c_im1 = full_ranking[im1]
+        cname_i = cnames[c_i]
+        cname_im1 = cnames[c_im1]
+        print("\t{}>={}: {} > {}, TaT={}".format(cname_im1,cname_i,A[c_im1,c_i],A[c_i,c_im1],TaT[c_i,c_im1]))
+
     print("-----")
 
     return
