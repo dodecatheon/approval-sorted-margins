@@ -32,7 +32,6 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     A = np.zeros((ncands,ncands))
     B = np.zeros((ncands,ncands))
     T = np.zeros((ncands))
-    TaT = np.zeros((ncands,ncands))
 
     if dcindex < 0:
         if cutoff == None:
@@ -44,8 +43,6 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
         # Tabulation with cutoff level:
         # ----------------------------------------------------------------------
         for ballot, w in zip(ballots,weight):
-            TaT += np.multiply.outer(np.where(ballot==maxscore,w,0),
-                                     np.where(ballot==maxscore,1,0))
             for r in range(1,maxscorep1):
                 A += np.multiply.outer(np.where(ballot==r,w,0),
                                        np.where(ballot<r ,1,0))
@@ -58,8 +55,6 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
         # Tabulation with explicit cutoff via disapproved candidate:
         # ----------------------------------------------------------------------
         for ballot, w in zip(ballots,weight):
-            TaT += np.multiply.outer(np.where(ballot==maxscore,w,0),
-                                     np.where(ballot==maxscore,1,0))
             if ballot[dcindex] > 0:
                 A[dcindex,dcindex] += w
             for r in range(1,maxscorep1):
@@ -94,7 +89,7 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     A += np.diag(T)
     B += np.diag(T)
 
-    return(winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B,TaT)
+    return(winner,tw,ncands,maxscore,cutoff,ranking,branking,T,A,B)
  
 def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
     
@@ -107,8 +102,7 @@ def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
      branking,
      T,
      A,
-     B,
-     TaT) = asm(ballots,weight,cnames, cutoff=cutoff, dcindex=dcindex, verbose=verbose)
+     B) = asm(ballots,weight,cnames, cutoff=cutoff, dcindex=dcindex, verbose=verbose)
 
     cands = np.arange(ncands)
     nsmith = len(ranking)
@@ -122,10 +116,6 @@ def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
 
     print("\nFull Pairwise Array, approval on diagonal, cutoff @ {}:".format(cutoff_descr))
     for row in A:
-        print(row)
-
-    print("\nTied-at-Top Pairwise Array:")
-    for row in TaT:
         print(row)
 
     if (nsmith > 1) and (nbsmith == 1):
@@ -187,22 +177,6 @@ def test_asm(ballots,weight,cnames,cutoff=None,dcindex=-1,verbose=0):
         cname_i = cnames[c_i]
         cname_im1 = cnames[c_im1]
         print("\t{}>{}: {} > {}".format(cname_im1,cname_i,A[c_im1,c_i],A[c_i,c_im1]))
-
-    print("-----\n")
-    # Also print out full ICA-style FBC-compliant pairwise
-    full_ranking = T.argsort()[::-1]
-    sorted_margins(full_ranking,T,(A.T > (A + TaT)),cnames,verbose=verbose)
-    winner = full_ranking[0]
-    print("All candidates, ranked by FBC-compliant Approval Sorted Margins:")
-    print("\t{}".format(' > '.join([cnames[c] for c in full_ranking])))
-    print("\nFBC-ASM pairwise results for all candidates:")
-    for i in range(1,ncands):
-        im1 = i - 1
-        c_i = full_ranking[i]
-        c_im1 = full_ranking[im1]
-        cname_i = cnames[c_i]
-        cname_im1 = cnames[c_im1]
-        print("\t{}>={}: {} > {}, TaT={}".format(cname_im1,cname_i,A[c_im1,c_i],A[c_i,c_im1],TaT[c_i,c_im1]))
 
     print("-----")
 
