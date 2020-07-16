@@ -20,7 +20,6 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     tw = weight.sum()
 
     maxscore = int(ballots.max())
-    maxscorep1 = maxscore + 1
 
     # ----------------------------------------------------------------------
     # Tabulation setup:
@@ -37,16 +36,14 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
         if cutoff == None:
             cutoff = (maxscore - 1) // 2
 
-        minapprove = cutoff + 1
-
         # ----------------------------------------------------------------------
         # Tabulation with cutoff level:
         # ----------------------------------------------------------------------
         for ballot, w in zip(ballots,weight):
-            for r in range(1,maxscorep1):
+            for r in range(maxscore,0,-1):
                 A += np.multiply.outer(np.where(ballot==r,w,0),
                                        np.where(ballot<r ,1,0))
-            for r in range(minapprove,maxscorep1):
+            for r in range(maxscore,cutoff,-1):
                 B += np.multiply.outer(np.where(ballot==r,w,-1),
                                        np.where(ballot<r ,1,0))
                 T += np.where(ballot==r,w,0)
@@ -57,10 +54,11 @@ def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
         for ballot, w in zip(ballots,weight):
             if ballot[dcindex] > 0:
                 A[dcindex,dcindex] += w
-            for r in range(1,maxscorep1):
+            bcutoff = ballot[dcindex]
+            for r in range(maxscore,0,-1):
                 A += np.multiply.outer(np.where(ballot==r,w,0),
                                        np.where(ballot<r ,1,0))
-            for r in range(ballot[dcindex]+1,maxscorep1):
+            for r in range(maxscore,bcutoff,-1):
                 B += np.multiply.outer(np.where(ballot==r,w,0),
                                        np.where(ballot<r ,1,0))
         # Approval totals = votes against the approval cutoff candidate
