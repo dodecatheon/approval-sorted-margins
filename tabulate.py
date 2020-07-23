@@ -2,7 +2,7 @@
 from sorted_margins import myfmt
 import numpy as np
 
-def scores(ballots,weights,cands,maxscore,maxscorep1,quota=0.0,verbose=0):
+def scores(ballots,weights,cands,maxscore,quota=0.0,verbose=0):
     """
     Tabulate ballots to find scores, then compress to only active candidates.
     Also determine where score exceeds the quota
@@ -19,18 +19,19 @@ def scores(ballots,weights,cands,maxscore,maxscorep1,quota=0.0,verbose=0):
     if quota == 0.0:
         quota = weights.sum()
     ncands = len(cands)
+    mp1 = maxscore + 1
     # S[r,x]: Total votes for candidate x at rating r
-    S = np.zeros((maxscorep1,numcands))
+    S = np.zeros((mp1,numcands))
     # ----------------------------------------------------------------------
     # Tabulation:
     # ----------------------------------------------------------------------
     for ballot, w in zip(ballots,weights):
-        for r in range(1,maxscorep1):
+        for r in range(maxscore,0,-1):
             rscores = np.where(ballot==r,w,0)
             S[r]  += rscores
     
     PermS = S[...,cands]
-    PermQ = np.zeros((maxscorep1,ncands))
+    PermQ = np.zeros((mp1,ncands))
     Total = np.zeros((ncands))
     STotal = np.zeros((ncands))
     inds = np.arange(ncands)
@@ -57,7 +58,7 @@ def scores(ballots,weights,cands,maxscore,maxscorep1,quota=0.0,verbose=0):
 
     return(PermS,PermQ,PermScore,STotal,qtar)
 
-def pairwise(ballots,weights,cands,Q,cnames,maxscore,maxscorep1,verbose=0):
+def pairwise(ballots,weights,cands,Q,cnames,maxscore,verbose=0):
     numballots, numcands = np.shape(ballots)
     ncands = len(cands)
     # A: pairwise array, equal-rated-none
@@ -68,7 +69,7 @@ def pairwise(ballots,weights,cands,Q,cnames,maxscore,maxscorep1,verbose=0):
     # ----------------------------------------------------------------------
     rscores = np.zeros((numcands))
     for ballot, w in zip(ballots,weights):
-        for r in range(1,maxscorep1):
+        for r in range(maxscore,0,-1):
             rscores = np.where(ballot==r,w,0.)
             # votes at rating r against other candidates are weighted by row r in Q
             # array.

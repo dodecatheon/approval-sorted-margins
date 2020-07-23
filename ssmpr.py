@@ -79,7 +79,7 @@ def ssm(ranking,Score,A,cnames,verbose=0):
 # Assumes Hare quota.  For Hagenbach-Bischhoff quota ("Droop"),
 # use Numseats minus 1 of the winners, with the last seated winner as
 # alternate runner-up.
-def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
+def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_only=False):
     """Run ssm to elect <numseats> in a PR multiwinner election"""
     numballots, numcands = np.shape(ballots)
     ncands = int(numcands) # force copy
@@ -124,7 +124,6 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
                                                 weights,
                                                 cands,
                                                 maxscore,
-                                                maxscorep1,
                                                 quota=quota,
                                                 verbose=verbose)
 
@@ -157,7 +156,7 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
             Score_qc = Score[perm_qc]
             QTA = [S[qtar[c]:,c].sum() for c in perm_qc]
             permq_rating = list(zip(Score_qc,STotal[perm_qc],qtar[perm_qc],QTA))
-            permqranking = np.array(sorted([i for i in range(nqcands)],
+            permqranking = np.array(sorted(np.arange(nqcands),
                                            key=(lambda c:permq_rating[c]),
                                            reverse=True))
             permqwinner = permqranking[0]
@@ -185,7 +184,6 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
                                       Q[...,perm_qc],
                                       cnames,
                                       maxscore,
-                                      maxscorep1,
                                       verbose=verbose)
 
                 # Determine the seat winner using sorted margins elimination:
@@ -211,7 +209,8 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
         Tqta = Swin[v:].sum()
         winscores = ballots[...,winner]
         vm1 = v - 1
-        q = quota
+        vp1 = v + 1
+        q = float(quota) # copy
 
         if verbose:
             print("Quota: ", myfmt(quota))
@@ -219,30 +218,49 @@ def ssmpr(ballots, weights, cnames, numseats, verbose=0, score_only=False):
             print("Winner's quota threshold rating  : ", v)
             print("Winner's normalized QTA score sum: ", myfmt(Sqta / maxscore))
 
-        if Tqta > quota:
-            # Where possible, use score-based scaling
-            #
-            # It's possible for the quota to be less then the quota threshold approval,
-            # but the normalized quota-threshold score to be less than the quota.
-            # In such cases, reweight highest scoring seat-winner ballots to zero,
-            # then continue to try rescaling the lower scoring ballots proportional to
-            # score. The worst case is that all ballots with scores above the quota threshold
-            # approval score are reweighted to zero, and ballots at the qta score
-            # are the only ones with non-zero reweighting.
-            mm = maxscore
-            for r in range(maxscore,vm1,-1):
-                if (mm * q > Sqta):
-                    factors[r] = 0.
-                    q -= Swin[r]
-                    Sqta -= r * Swin[r]
-                    mm = r - 1
-                else:
-                    factors[r] = 1. - r * q / Sqta
-
-            weights = np.multiply(np.array([factors[s] for s in winscores]), weights)
-        else:
+        if Tqta <= quota:
             weights = np.where(winscores>0, 0., weights)
             factors = np.zeros((maxscorep1))
+        else:
+            # Variations on reweighting:
+            if (v == maxscore):
+                factors[v] = 1.0 - q / Swin[v]
+                print("QTA rating == maxscore ({}), so all reweighting algorithms are the same.".format(maxscore))
+            elif (reweighting == 2):        # STV
+                # For Single Transferable Vote, or if the quota threshold rating
+                # is maxscore, just rescale the top-rating-scored ballots to remove
+                # an entire quota
+                factors[v:] = 1.0 - q / Tqta
+                print("STV reweighting")
+            elif reweighting == 1:          # SMV
+                # In classical Sequential Monroe Voting, all ballots scoring the
+                # winner /above/ the quota-threshold-rating are reweighted to
+                # zero. Any weight still remaining is rescaled to be removed from
+                # ballots on the quota-threshold-rating cusp
+                q -= Swin[vp1:].sum()
+                factors[v] = 1.0 - q / Swin[v]
+                factors[vp1:] = 0.0
+                print("SMV reweighting")
+            else:                           # Scaled
+                # Scaled reweighting is a compromise between STV and SMV:
+                # The qta score sum rating range is adjusted upward until 
+                # 
+                rr = scorerange[v:] + 0
+                ss = (Swin[v:] * rr).sum()
+                while ( (rr[-1] * q) > ss ):
+                    rr += 1
+                    ss = (Swin[v:] * rr).sum()
+                factors[v:] = 1.0 - rr * q / ss
+                if verbose > 1:
+                    print("Scaled reweighting")
+                    if (rr[-1] > maxscore):
+                        print(("\tQTA+ scores adjusted "
+                               "from {}:{} to {}:{}").format(int(scorerange[v]),
+                                                             int(scorerange[-1]),
+                                                             int(rr[0]),
+                                                             int(rr[-1])))
+
+            weights = np.multiply(np.array([factors[s] for s in winscores]), weights)
 
         numvotes = weights.sum()
 
@@ -308,13 +326,26 @@ def main():
     parser.add_argument("-m", "--numseats", type=int,
                         default=1,
                         help="Number of seats [default: 1]")
+    parser.add_argument("-r", "--reweighting", type=str,
+                        choices=["SMV", "STV", "Scaled"],
+                        default="Scaled",
+                        help="""Reweighting algorithm choice:
+                        'SMV' = sequential monroe voting style, any scores above the
+                        quota threshold approval (QTA) rating are reweighted to zero,
+                        with scores exactly at the QTA rating rescaled to finish removing
+                        one quota;
+                        'STV' = Single Transferable Vote style, all scores at and above
+                        the QTA rating use the same factor; or
+                        'Scaled', scores are optimally reweighted proportional to adjusted
+                        score (see README for details), a compromise between SMV and STV
+                        styles. [default: 'Scaled']""")
+    parser.add_argument("-s", "--score_only", action='store_true',
+                        default=False,
+                        help="Score only (AKA Sequential Monroe), not SSMPR [default: False]")
     parser.add_argument("-t", "--filetype", type=str,
                         choices=["score", "rcv"],
                         default="score",
                         help="CSV file type, either 'score' or 'rcv' [default: 'score']")
-    parser.add_argument("-s", "--score_only", action='store_true',
-                        default=False,
-                        help="Score only, no sorted margins (AKA Sequential Monroe) [default: False]")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity [default: 0]")
@@ -330,6 +361,12 @@ def main():
         print("SEQUENTIAL MONROE VOTING")
     else:
         print("SCORE SORTED MARGINS PR VOTING (quota threshold approval)")
+
+    if args.verbose > 0:
+        print("\tWith reweighting method =", args.reweighting)
+
+    reweighting = {"Scaled":0,"SMV":1,"STV":2}[args.reweighting]
+
     if args.verbose > 3:
         print("- "*30)
         # Figure out the width of the weight field, use it to create the format
@@ -340,6 +377,7 @@ def main():
             print(ff.format(w),ballot)
 
     winners = ssmpr(ballots, weights, cnames, args.numseats,
+                    reweighting=reweighting,
                     verbose=args.verbose,
                     score_only=args.score_only)
     print("- "*30)
