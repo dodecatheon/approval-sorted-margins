@@ -225,13 +225,15 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
             # Variations on reweighting:
             if (v == maxscore):
                 factors[v] = 1.0 - q / Swin[v]
-                print("QTA rating == maxscore ({}), so all reweighting algorithms are the same.".format(maxscore))
+                if verbose > 0:
+                    print("QTA rating == maxscore ({}), so all reweighting algorithms are the same.".format(maxscore))
             elif (reweighting == 2):        # STV
                 # For Single Transferable Vote, or if the quota threshold rating
                 # is maxscore, just rescale the top-rating-scored ballots to remove
                 # an entire quota
                 factors[v:] = 1.0 - q / Tqta
-                print("STV reweighting")
+                if verbose > 0:
+                    print("STV reweighting")
             elif reweighting == 1:          # SMV
                 # In classical Sequential Monroe Voting, all ballots scoring the
                 # winner /above/ the quota-threshold-rating are reweighted to
@@ -240,7 +242,8 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
                 q -= Swin[vp1:].sum()
                 factors[v] = 1.0 - q / Swin[v]
                 factors[vp1:] = 0.0
-                print("SMV reweighting")
+                if verbose > 0:
+                    print("SMV reweighting")
             else:                           # Scaled
                 # Scaled reweighting is a compromise between STV and SMV:
                 # The qta score sum rating range is adjusted upward until 
@@ -251,7 +254,7 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
                     rr += 1
                     ss = (Swin[v:] * rr).sum()
                 factors[v:] = 1.0 - rr * q / ss
-                if verbose > 1:
+                if verbose > 0:
                     print("Scaled reweighting")
                     if (rr[-1] > maxscore):
                         print(("\tQTA+ scores adjusted "
@@ -260,6 +263,8 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
                                                              int(rr[0]),
                                                              int(rr[-1])))
 
+            # for each ballot, rescale its weight by the factor corresponding to
+            # the winning candidate's score on that ballot:
             weights = np.multiply(np.array([factors[s] for s in winscores]), weights)
 
         numvotes = weights.sum()
