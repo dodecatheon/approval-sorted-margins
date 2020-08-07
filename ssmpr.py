@@ -51,6 +51,12 @@ def ssm(ranking,Score,A,cnames,verbose=0):
     # Assume the ranking is pre-seeded
     # ranking = Score.argsort()[::-1] # Seed the ranking using Score
     sw = ranking[0]
+    STAR_winner = ranking[0]
+    if len(ranking) > 1:
+        sru = ranking[1]
+        if A[sru,sw] > A[sw,sru]:
+            STAR_winner = ranking[1]
+
     sm.sorted_margins(ranking,Score,A.T > A,cnames,verbose=verbose)
     if (verbose > 0) and (len(ranking)>1):
         w  = ranking[0]
@@ -58,21 +64,41 @@ def ssm(ranking,Score,A,cnames,verbose=0):
         w_name = cnames[w]
         ru_name = cnames[ru]
         sw_name = cnames[sw]
+        STARw_name = cnames[STAR_winner]
         w_score = Score[w]
         sw_score = Score[sw]
-        print('[SSM] Winner vs. Runner-up pairwise result: ',
+        STARw_score = Score[STAR_winner]
+
+        print('[SSM] Winner vs. SSM-Runner-up pairwise result: ',
               '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,ru]),
                                       ru_name,myfmt(A[ru,w])))
-        if w == sw:
-            print('[SSM] Winner has highest score')
+        if STAR_winner != sw:
+            print('STAR Winner defeats Score winner, pairwise:  ',
+                  '{}:{} >= {}:{}'.format(STARw_name,myfmt(A[STAR_winner,sw]),
+                                          sw_name,myfmt(A[sw,STAR_winner])))
         else:
+            print('STAR winner == Score winner')
+
+        if w == sw:
+            if w == STAR_winner:
+                print('[SSM] Winner is both top scorer and STAR winner')
+            else:
+                print('[SSM] Winner is Score winner, but not STAR winner')
+        else:
+            if w == STAR_winner:
+                print('[SSM] Winner is not Score winner, but is STAR winner')
+
             if sw != ru:
-                print('[SSM] Winner vs. highest Scorer, pairwise: ',
+                print('[SSM] Winner vs. Score winner, pairwise: ',
                       '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,sw]),
                                               sw_name,myfmt(A[sw,w])))
-            print('[SSM] Winner vs. highest Scorer, score: ',
+            print('[SSM] Winner vs. Score Winner, score: ',
                   '{}:{} <= {}:{}'.format(w_name,myfmt(w_score),
                                           sw_name,myfmt(sw_score)))
+        if sw != STAR_winner and w != STAR_winner:
+            print('[SSM] Winner vs. STAR winner, pairwise:  ',
+                  '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,STAR_winner]),
+                                          STARw_name,myfmt(A[STAR_winner,w])))
     return
 
 
@@ -284,6 +310,12 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
             print(", ".join(["{}:{}".format(j,myfmt(f))
                              for j, f in zip(scorerange[-1::-1],
                                              factors[-1::-1])
+                             if f < 1.0]))
+            print("\tQfactors:  ", end="")
+            Qfactors=1. - Q[...,permwinner]
+            print(", ".join(["{}:{}".format(j,myfmt(f))
+                             for j, f in zip(scorerange[-1::-1],
+                                             Qfactors[-1::-1])
                              if f < 1.0]))
             print("\t% of vote left:  {}%".format(myfmt((numvotes/
                                                          numvotes_orig) * 100)))
