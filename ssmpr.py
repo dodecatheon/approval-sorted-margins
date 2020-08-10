@@ -99,13 +99,13 @@ def ssm(ranking,Score,A,cnames,verbose=0):
             print('[SSM] Winner vs. STAR winner, pairwise:  ',
                   '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,STAR_winner]),
                                           STARw_name,myfmt(A[STAR_winner,w])))
-    return
+    return STAR_winner
 
 
 # Assumes Hare quota.  For Hagenbach-Bischhoff quota ("Droop"),
 # use Numseats minus 1 of the winners, with the last seated winner as
 # alternate runner-up.
-def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_only=False):
+def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, method=0):
     """Run ssm to elect <numseats> in a PR multiwinner election"""
     numballots, numcands = np.shape(ballots)
     ncands = int(numcands) # force copy
@@ -168,7 +168,7 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
             winner = cands[permwinner]
             permranking = np.array([0])
         else:
-            # Now there is a choice between score_only method and SSM
+            # Now there is a choice between SMV and SSM
             if nqcands > 0:
                 qcands = cands[perm_qc]
             else:
@@ -194,10 +194,11 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
                 print("\t" + ",\n\t".join(["{}:{}".format(c,s)
                                           for c, s in zip(cnames[permqranking],permqtuples)]))
 
-            if score_only:
+            permranking = inds[permqranking]
+
+            if method==1:                    # SMV
                 # don't do Score Sorted Margins, just use the ranking sorted
                 # by qualified top score
-                permranking = inds[permqranking]
                 permwinner = permranking[0]
                 
             else:
@@ -213,9 +214,12 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
                                       verbose=verbose)
 
                 # Determine the seat winner using sorted margins elimination:
-                ssm(permqranking,Score_qc,A,qcnames,verbose=verbose)
-                permqwinner = permqranking[0]
-                permranking = inds[permqranking]
+                STAR_winner = ssm(permqranking,Score_qc,A,qcnames,verbose=verbose)
+                if (method == 2):
+                    permqwinner = int(STAR_winner)
+                else:
+                    permqwinner = permqranking[0]
+                    permranking = inds[permqranking]
                 permwinner =  inds[permqwinner]
 
         winner = cands[permwinner]
@@ -273,7 +277,7 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, score_onl
             else:                           # Scaled
                 # Scaled reweighting is a compromise between STV and SMV:
                 # The qta score sum rating range is adjusted upward until 
-                # 
+                # the quota-threshold score sum is larger than the quota
                 rr = scorerange[v:] + 0
                 ss = (Swin[v:] * rr).sum()
                 while ( (rr[-1] * q) > ss ):
@@ -365,7 +369,7 @@ def main():
                         help="Number of seats [default: 1]")
     parser.add_argument("-r", "--reweighting", type=str,
                         choices=["SMV", "STV", "Scaled"],
-                        default="Scaled",
+                        default="SMV",
                         help="""Reweighting algorithm choice:
                         'SMV' = sequential monroe voting style, any scores above the
                         quota threshold approval (QTA) rating are reweighted to zero,
@@ -375,10 +379,13 @@ def main():
                         the QTA rating use the same factor; or
                         'Scaled', scores are optimally reweighted proportional to adjusted
                         score (see README for details), a compromise between SMV and STV
-                        styles. [default: 'Scaled']""")
-    parser.add_argument("-s", "--score_only", action='store_true',
-                        default=False,
-                        help="Score only (AKA Sequential Monroe), not SSMPR [default: False]")
+                        styles. [default: 'SMV']""")
+    parser.add_argument("-s", "--select_method",
+                        choices=["SSM", "SMV", "STAR"],
+                        default="SSM",
+                        help="""Select method for seat winner: SSM (Score Sorted Margins, Condorcet), SMV(Sequential
+                        Monroe Voting, top score), or STAR (Score Then Automatic Runoff, pairwise between top two
+                        quota threshold score winners [default: SSM]""")
     parser.add_argument("-t", "--filetype", type=str,
                         choices=["score", "rcv"],
                         default="score",
@@ -394,10 +401,14 @@ def main():
     ballots, weights, cnames = csvtoballots(args.inputfile,ftype=ftype)
 
     print("- "*30)
-    if (args.score_only):
-        print("SEQUENTIAL MONROE VOTING")
-    else:
-        print("SCORE SORTED MARGINS PR VOTING (quota threshold approval)")
+
+    method = {"SSM":0, "SMV":1, "STAR":2}[args.select_method]
+
+    method_description = ["SCORE SORTED MARGINS PR",
+                          "SEQUENTIAL MONROE VOTING",
+                          "STAR = Score Then Automatic Runoff, with SMV weighting"]
+
+    print(method_description[method])
 
     if args.verbose > 0:
         print("\tWith reweighting method =", args.reweighting)
@@ -416,7 +427,7 @@ def main():
     winners = ssmpr(ballots, weights, cnames, args.numseats,
                     reweighting=reweighting,
                     verbose=args.verbose,
-                    score_only=args.score_only)
+                    method=method)
     print("- "*30)
 
     if args.numseats == 1:
@@ -424,11 +435,8 @@ def main():
     else:
         winfmt = "{} winners".format(args.numseats)
 
-    if args.score_only:
-        print("\nSMV results, ", end="")
-    else:
-        print("\nSSMPR results, ", end="")
-
+    method_descriptor = {0:"SSMPR", 1:"SMV", 2:"STAR"}[method]
+    print("\n{} results, ".format(method_descriptor), end="")
     print("{}:".format(winfmt),", ".join([cnames[q] for q in winners]))
 
 if __name__ == "__main__":
