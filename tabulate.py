@@ -121,6 +121,7 @@ def pairwise_scores(ballots,weights,cands,cnames,maxscore,maxscorep1,verbose=0):
     #
     # Using NumPy matrix-matrix multiplication:
     TS = np.array(np.matrix(np.diagflat(np.arange(maxscorep1))) * np.matrix(S)).sum(axis=0)
+    TA = S.sum(axis=0)
 
     if (verbose > 2):
         print("\nFull Pairwise Array")
@@ -128,5 +129,5 @@ def pairwise_scores(ballots,weights,cands,cnames,maxscore,maxscorep1,verbose=0):
         for c, row in zip(cnames[cands],A):
             print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
 
-    return(S,A,TS)
+    return(S,A,TS,TA)
 

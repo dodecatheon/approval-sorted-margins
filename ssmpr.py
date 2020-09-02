@@ -120,6 +120,7 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, method=0)
 
     # Hare quota
     quota = numvotes/numseats
+    droopquota = numvotes / (numseats + 1)
 
     maxscore = ballots.max()
 
@@ -214,7 +215,8 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, method=0)
                                       verbose=verbose)
 
                 # Determine the seat winner using sorted margins elimination:
-                STAR_winner = ssm(permqranking,Score_qc,A,qcnames,verbose=verbose)
+                STAR_winner = ssm(permqranking,permq_rating,A,qcnames,verbose=verbose)
+                # STAR_winner = ssm(permqranking,Score_qc,A,qcnames,verbose=verbose)
                 if (method == 2):
                     permqwinner = int(STAR_winner)
                 else:
@@ -269,9 +271,25 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, method=0)
                 # winner /above/ the quota-threshold-rating are reweighted to
                 # zero. Any weight still remaining is rescaled to be removed from
                 # ballots on the quota-threshold-rating cusp
-                q -= Swin[vp1:].sum()
-                factors[v] = 1.0 - q / Swin[v]
-                factors[vp1:] = 0.0
+
+                if True:
+                    # James Quinn refinement: exhaust only a droopquota for each seat
+                    # instead of Hare quota, while still using Hare quota for quota threshold rating, etc.
+                    q = float(droopquota)   # copy
+                    Twin = 0.
+                    for r in range(maxscore,0,-1):
+                        Twin += Swin[r]
+                        if Twin < droopquota:
+                            factors[r] = 0.0
+                            q -= Swin[r]
+                        elif Twin >= droopquota:
+                            factors[r] = 1 - q / Swin[r]
+                            break
+                else:                                       # Original SMV factors:
+                    q -= Swin[vp1:].sum()
+                    factors[v] = 1.0 - q / Swin[v]
+                    factors[vp1:] = 0.0
+
                 if verbose > 0:
                     print("SMV reweighting")
             else:                           # Scaled

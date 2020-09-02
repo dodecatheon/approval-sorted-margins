@@ -3,12 +3,27 @@ from collections import deque
 import numpy as np
 from math import log10
 
-def myfmt(x):
+def myfmtscalar(x):
     if x > 1:
         fmt = "{:." + "{}".format(int(log10(x))+5) + "g}"
     else:
         fmt = "{:.5g}"
     return fmt.format(x)
+
+def myfmt(x):
+    try:
+        c = myfmtscalar(x)
+    except:
+        c = "(" + ", ".join([myfmtscalar(y) for y in x]) + ")"
+    return c
+
+def mydiff(f,t):
+    "Return the difference between f (from) and t (to), as scalar or tuple"
+    try:
+        md = tuple([d - c for c, d in zip(f,t)])
+    except:
+        md = t - f
+    return md
 
 def smith_from_losses(losses,cands):
     sum_losses = losses.sum(axis=1)
@@ -42,13 +57,20 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
     # Loop until no pairs are out of order pairwise
     n = len(ranking)
     ncands = len(metric)
-    maxdiff = metric.max() - metric.min() + 1
+    mmin = metric[0]
+    mmax = metric[0]
+    for m in metric[1:]:
+        if m < mmin:
+            mmin = m
+        if m > mmax:
+            mmin = m
+    maxdiff = mydiff(mmin,mmax)
     if verbose > 1:
         print(". "*30)
         print("Showing Sorted Margin iterations, starting from seeded ranking:")
         print('\t{}\n'.format(' > '.join(['{}:{}'.format(cnames[c],myfmt(metric[c])) for c in ranking])))
     while True:
-        apprsort = metric[ranking]
+        apprsort = [metric[r] for r in ranking]
         apprdiff = []
         outoforder = []
         mindiffval = maxdiff
@@ -59,7 +81,7 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
             c_im1 = ranking[im1]
             if (loss_array[c_im1,c_i]):
                 outoforder.append((c_im1,c_i))
-                apprdiff.append(apprsort[im1] - apprsort[i])
+                apprdiff.append(mydiff(apprsort[i],apprsort[im1]))
                 if apprdiff[-1] < mindiffval:
                     mindiff = im1
                     mindiffval = apprdiff[-1]
