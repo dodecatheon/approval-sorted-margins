@@ -12,6 +12,22 @@ import numpy as np
 from ballot_tools.csvtoballots import *
 from sorted_margins import sorted_margins, myfmt, smith_from_losses
 
+def find_dcindex(cnames,dcname=None):
+    dcindex = -1
+
+    if not dcname:
+        name_option = re.compile(r'((approval )*cutoff|disapprove|notb|nota|none of the (above|below))',
+                                 re.IGNORECASE)
+    else:
+        name_option = re.compile(dcname,re.IGNORECASE)
+
+    for i, cn in enumerate(cnames):
+        if name_option.match(cn):
+            dcindex = i
+            break
+
+    return(dcindex)
+
 def asm(ballots, weight, cnames, cutoff=None, dcindex=-1, verbose=0):
     "Approval Sorted Margins"
 
@@ -194,7 +210,7 @@ def main():
                         required=False,
                         default=None,
                         help="Approval cutoff rating [default: None]")
-    parser.add_argument("-d", "--disapproved_candidate",
+    parser.add_argument("-d", "--deprecated_candidate",
                         type=str,
                         required=False,
                         default=None,
@@ -208,19 +224,8 @@ def main():
 
     ballots, weight, cnames = csvtoballots(args.inputfile)
 
-    disapproved_candidate_index = -1
+    dcindex = find_dcindex(cnames, dcname=args.deprecated_candidate)
 
-    if not args.disapproved_candidate:
-        name_option = re.compile(r'((approval )*cutoff|disapprove|notb|nota|none of the (above|below))',
-                                 re.IGNORECASE)
-    else:
-        name_option = re.compile(args.disapproved_candidate,re.IGNORECASE)
-
-    for i, cn in enumerate(cnames):
-        if name_option.match(cn):
-            disapproved_candidate_index = i
-            break
-        
     # Figure out the width of the weight field, use it to create the format
     ff = '\t{{:{}d}}:'.format(int(log10(weight.max())) + 1)
 
@@ -230,7 +235,8 @@ def main():
 
     test_asm(ballots, weight, cnames,
              cutoff=args.cutoff,
-             dcindex=disapproved_candidate_index, verbose=args.verbose)
+             dcindex=dcindex,
+             verbose=args.verbose)
 
 if __name__ == "__main__":
     main()
