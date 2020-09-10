@@ -16,7 +16,7 @@ def find_dcindex(cnames,dcname=None):
     dcindex = -1
 
     if not dcname:
-        name_option = re.compile(r'((approval )*cutoff|disapprove|notb|nota|none of the (above|below))',
+        name_option = re.compile(r'(((preference|approval) )*cutoff|disapprove|notb|nota|none of the (above|below))',
                                  re.IGNORECASE)
     else:
         name_option = re.compile(dcname,re.IGNORECASE)

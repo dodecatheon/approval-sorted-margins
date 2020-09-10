@@ -101,10 +101,10 @@ def pairwise_scores(ballots,weights,cands,cnames,maxscore,maxscorep1,verbose=0):
     # ----------------------------------------------------------------------
     rscores = np.zeros((numcands))
     for ballot, w in zip(ballots,weights):
-        for r in range(1,maxscorep1):
+        for r in range(maxscore,0,-1):
             rscores = np.where(ballot==r,w,0)
             SS[r]  += rscores
-            SA     += np.multiply.outer(rscores,np.where(ballot<r,1,0))
+            AA     += np.multiply.outer(rscores,np.where(ballot<r,1,0))
 
     # Restrict from full ballot down to the specified candidates:
     S = SS[...,cands]
@@ -130,4 +130,88 @@ def pairwise_scores(ballots,weights,cands,cnames,maxscore,maxscorep1,verbose=0):
             print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
 
     return(S,A,TS,TA)
+
+
+def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscorep1,
+                                  threshlevel=0.0,
+                                  cutoff=0,
+                                  dcindex=-1,
+                                  verbose=0):
+    "Permuted Pairwise array and scores when quota is 100%"
+    numballots, numcands = np.shape(ballots)
+    ncands = len(cands)
+    rscores = np.zeros((numcands))
+    # A: pairwise array, equal-rated-none; A[x,y] = votes for cand x against cand y
+    AA = np.zeros((numcands,numcands))
+    # S[r,x]: Total votes at rating r for candidate x
+    SS = np.zeros((maxscorep1,numcands))
+
+    # Pref[x]: Total preference for candidate x
+    PP = np.zeros((numcands))
+
+    # ----------------------------------------------------------------------
+    # Tabulation:
+    # ----------------------------------------------------------------------
+
+    if dcindex < 0:
+        # Global preference cutoff, same for all ballots
+        for ballot, w in zip(ballots,weights):
+            for r in range(maxscore,0,-1):
+                rscores = np.where(ballot==r,w,0)
+                SS[r]  += rscores
+                AA     += np.multiply.outer(rscores,np.where(ballot<r,1,0))
+            for r in range(maxscore,cutoff,-1):
+                PP     += np.where(ballot==r,w,0)
+    else:
+        # Explicit preference cutoff, specified for each ballot
+        for ballot, w in zip(ballots,weights):
+            if ballot[dcindex] > 0:
+                AA[dcindex,dcindex] += w
+            for r in range(maxscore,0,-1):
+                rscores = np.where(ballot==r,w,0)
+                SS[r]  += rscores
+                AA     += np.multiply.outer(rscores,np.where(ballot<r,1,0))
+        # Preference totals = votes against the Preference cutoff candidate
+        PP = np.array(AA[...,dcindex])
+        AA[dcindex,dcindex] = 0.0
+    
+    # Restrict from full ballot down to the specified candidates:
+    S = np.zeros((0,0))
+    Approval = np.zeros((0))
+    A = np.zeros((0,0))
+    Score = np.zeros((0))
+    Pref = np.zeros((0))
+
+    inds = np.arange(ncands)
+    permqc = np.compress(SS[...,cands].sum(axis=0) > threshlevel,inds)
+    ncands = len(permqc)
+    if ncands == 0:
+        return(ncands,cands,S,A,Pref,Approval,Score)
+    cands = cands[permqc]
+    S = SS[...,cands]
+    Approval = S.sum(axis=0)
+
+    # row permutation in NumPy is not quite as simple as column permutation:
+    A = np.zeros((ncands,ncands))
+    for i,c in enumerate(cands):
+        A[i] = AA[c][cands]
+
+    # Total preference, restricted to just candidates:
+    Pref = PP[cands]
+
+    # Total score TS[x] = r*S[max,x] + ... + 2 * S[2,x] + 1 * S[1,x]
+    # TS = np.zeros((ncands))
+    # for r in range(maxscore,0,-1):
+    #     TS += r * S[r]
+    #
+    # Using NumPy matrix-matrix multiplication:
+    Score = np.array(np.matrix(np.diagflat(np.arange(maxscorep1))) * np.matrix(S)).sum(axis=0)
+
+    if (verbose > 2):
+        print("\nFull Pairwise Array")
+        print("     [ " + " | ".join(cnames[cands]) + " ]")
+        for c, row in zip(cnames[cands],A):
+            print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
+
+    return(ncands,cands,S,A,Pref,Approval,Score)
 
