@@ -81,8 +81,8 @@ def winnow(ballots,
     for seat in range(numseats):
 
         if verbose>0:
-            print("- "*30,"\nStarting count for winnowing candidates", seat+1)
-            print("Number of votes:",myfmt(numvotes))
+            print("- "*30,"\nStarting count for advancing candidate #{}".format(seat+1))
+            print("Number of votes remaining:",myfmt(numvotes))
 
         # ----------------------------------------------------------------------
         # Tabulation:
