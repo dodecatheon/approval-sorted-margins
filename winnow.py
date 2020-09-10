@@ -15,8 +15,8 @@ Repeat until a threshold of votes are used up:\n
 \t- Alternatives:\n 
 \t- Preference//Approval, Score, STAR, Score Sorted Margins.\n
 \t- After each winner is found, apply exhaustive reweighting to ballots giving non-zero\n
-\t  score to the winner, either (default) exhausting up to 50% of remaining total ballot weight, or\n
-\t  reducing those ballots to zero weight to simulate a general election.\n
+\t  score to the winner, either (default) exhausting winner-approving ballots completely, or
+\t  optionally exhausting a max of 50% of remaining ballots.\n
 \t- Continue until (default) 7 candidates have been advanced, or there are no more\n
 \t  candidates with approval above the threshold.
 \n
@@ -40,7 +40,7 @@ def winnow(ballots,
            invthreshlevel=32,
            cutoff=None,
            dcindex=-1,
-           general=False,
+           max50=False,
            verbose=0):
     """Singe Winner winnowing election with score ballots"""
 
@@ -133,6 +133,11 @@ def winnow(ballots,
                                           key=(lambda c:permrating[c]),
                                           reverse=True))
 
+            if verbose:
+                print("Candidate,", permlabel)
+                for c in permranking:
+                    print(cnames[cands[c]], permrating[c])
+
             if (method == 0):                           # PASM
                 sm.sorted_margins(permranking,
                                   permrating,
@@ -171,7 +176,7 @@ def winnow(ballots,
         if verbose:
             print("Winner's exclusive approval: {} votes, {}%".format(myfmt(winner_approval),
                                                                       myfmt(winner_approval/numvotes_orig*100)))
-        if general or ((2*winner_approval) < numvotes):
+        if (not max50) or ((2*winner_approval) < numvotes):
             factor = 0.0
             if verbose:
                 print("Reweighting: all ballots approving {} are exhausted".format(cnames[winner]))
@@ -228,10 +233,6 @@ def main():
                         help=("Preference cutoff candidate name. "
                         "Any candidate at or below the ballot's score for "
                         "deprecated_candidate is not preferred. [default: None]"))
-    parser.add_argument("-g", "--general",
-                        action='store_true',
-                        default=False,
-                        help="Run like a general election, exhausting all approved ballots [default: False]")
     parser.add_argument("-l", "--inverse_threshold_level",
                         type=int,
                         default=100,
@@ -241,7 +242,7 @@ def main():
     parser.add_argument("-m", "--numseats",
                         type=int,
                         default=7,
-                        help="Number of candidates advancing to general elecction [default: 7]")
+                        help="Maximum number of candidates to advance past winnowing [default: 7]")
     parser.add_argument("-s", "--select_method",
                         type=str,
                         choices=methods,
@@ -254,9 +255,14 @@ def main():
                         choices=["score", "rcv"],
                         default="score",
                         help="CSV file type, either 'score' or 'rcv' [default: 'score']")
+    parser.add_argument("-x", "--max50",
+                        action='store_true',
+                        default=False,
+                        help="""Exhausting a maximum of 50 percent of remaining ballots for each candidate
+                        advanced [default: False]""")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
-                        help="Add verbosity [default: 0]")
+                        help="Add verbosity (increase by repetition) [default: 0]")
 
     args = parser.parse_args()
 
@@ -304,7 +310,7 @@ def main():
                                invthreshlevel=args.inverse_threshold_level,
                                cutoff=args.cutoff,
                                dcindex=dcindex,
-                               general=args.general,
+                               max50=args.max50,
                                verbose=args.verbose)
 
     print("- "*30)
@@ -321,7 +327,10 @@ def main():
     if args.verbose:
         print("Winner, Overall Approval, Exclusive Approval, Exhausted Votes")
         for w, oa, xa, xv in zip(winners,overall_approval,exclusive_approval,exhausted_votes):
-            print("\t{},\t{},\t{},\t{}".format(cnames[w],myfmt(oa),myfmt(xa),myfmt(xv)))
+            print("{:30}{:20}{:20}{:20}".format(cnames[w]+",",
+                                                str(myfmt(oa))+",",
+                                                str(myfmt(xa))+",",
+                                                str(myfmt(xv))))
 
 if __name__ == "__main__":
     main()
