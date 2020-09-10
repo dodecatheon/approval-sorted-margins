@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 """\
-Run a primary election. Uses Score ballots. Non-zero score indicates approval.
+Run a primary election to winnow candidates. \n
+\n
+Uses Score ballots. Non-zero score indicates approval.
 Voters may optionally indicate a top preference cutoff. This is relevant for
-Preference Approval sorted margins.\n
+Preference Approval Sorted Margins.\n
 \n
 Repeat until a threshold of votes are used up:\n
 \n
@@ -11,11 +13,12 @@ Repeat until a threshold of votes are used up:\n
 \n- Default method:\n
 \t- Preference-Approval Sorted Margins with explicit preference above Preference cutoff.\n
 \t- Alternatives:\n 
-\t- Approval, Score, STAR, Score Sorted Margins.\n
-\t- After each winner is found, remove all ballots giving non-zero score to winner.\n
-\t- Continue until one of the following occurs:\n
-\t\t* Used-up threshold has been met\n
-\t\t* Exclusive Approval for round winner or runner up is below approval threshold.\n
+\t- Preference//Approval, Score, STAR, Score Sorted Margins.\n
+\t- After each winner is found, apply exhaustive reweighting to ballots giving non-zero\n
+\t  score to the winner, either (default) exhausting up to 50% of remaining total ballot weight, or\n
+\t  reducing those ballots to zero weight to simulate a general election.\n
+\t- Continue until (default) 7 candidates have been advanced, or there are no more\n
+\t  candidates with approval above the threshold.
 \n
 Default exclusive approval threshold 1/100 (1%)\n
 """
@@ -29,17 +32,17 @@ from asm import find_dcindex
 
 myfmt = sm.myfmt
 
-def primary(ballots,
-            weights,
-            cnames,
-            numseats,
-            method=0,
-            invthreshlevel=32,
-            cutoff=None,
-            dcindex=-1,
-            general=False,
-            verbose=0):
-    """Singe Winner primary election with score ballots"""
+def winnow(ballots,
+           weights,
+           cnames,
+           numseats,
+           method=0,
+           invthreshlevel=32,
+           cutoff=None,
+           dcindex=-1,
+           general=False,
+           verbose=0):
+    """Singe Winner winnowing election with score ballots"""
 
     if dcindex < 0:
         if cutoff == None:
@@ -78,7 +81,7 @@ def primary(ballots,
     for seat in range(numseats):
 
         if verbose>0:
-            print("- "*30,"\nStarting count for primary winner", seat+1)
+            print("- "*30,"\nStarting count for winnowing candidates", seat+1)
             print("Number of votes:",myfmt(numvotes))
 
         # ----------------------------------------------------------------------
@@ -134,17 +137,16 @@ def primary(ballots,
                 sm.sorted_margins(permranking,
                                   permrating,
                                   (A.T > A),
-                                  cnames,
+                                  cnames[cands],
                                   verbose=verbose)
                 permwinner = permranking[0]
             elif (method < 3):                          # Pref/Approval, Score
                 permwinner = permranking[0]
             elif method == 3 or method == 4:            # STAR / SSM
-                STAR_winner = ssm(permranking,cands,A,cnames,verbose=verbose)
-                if method == 3:                         # STAR
-                    permwinner = int(STAR_winner)
-                else:
-                    permwinner = permranking[0]         # SSM
+                permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose)
+                if method == 4:                         # SSM
+                    permwinner = permranking[0]
+                # else, permwinner = STAR_winner
 
         try:
             winner = cands[permwinner]
@@ -294,16 +296,16 @@ def main():
     (winners,
      overall_approval,
      exclusive_approval,
-     exhausted_votes) = primary(ballots,
-                                weights,
-                                cnames,
-                                args.numseats,
-                                method=method,
-                                invthreshlevel=args.inverse_threshold_level,
-                                cutoff=args.cutoff,
-                                dcindex=dcindex,
-                                general=args.general,
-                                verbose=args.verbose)
+     exhausted_votes) = winnow(ballots,
+                               weights,
+                               cnames,
+                               args.numseats,
+                               method=method,
+                               invthreshlevel=args.inverse_threshold_level,
+                               cutoff=args.cutoff,
+                               dcindex=dcindex,
+                               general=args.general,
+                               verbose=args.verbose)
 
     print("- "*30)
 

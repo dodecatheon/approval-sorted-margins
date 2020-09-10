@@ -182,9 +182,14 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
     Score = np.zeros((0))
     Pref = np.zeros((0))
 
+    ncands_old = int(ncands)
     inds = np.arange(ncands)
     permqc = np.compress(SS[...,cands].sum(axis=0) > threshlevel,inds)
     ncands = len(permqc)
+
+    if verbose and (ncands < ncands_old):
+        print("Approval threshold reduces # candidates from {} to {}".format(ncands_old,ncands))
+
     if ncands == 0:
         return(ncands,cands,S,A,Pref,Approval,Score)
     cands = cands[permqc]
