@@ -325,7 +325,10 @@ def main():
     print("{}:".format(winfmt),", ".join([cnames[q] for q in winners]))
 
     if args.verbose:
-        print("Winner, Overall Approval, Exclusive Approval, Exhausted Votes")
+        print("\n\n{:30}{:20}{:20}{:20}\n".format("Winner,",
+                                                  "Overall Approval,",
+                                                  "Exclusive Approval,",
+                                                  "Exhausted Votes"))
         for w, oa, xa, xv in zip(winners,overall_approval,exclusive_approval,exhausted_votes):
             print("{:30}{:20}{:20}{:20}".format(cnames[w]+",",
                                                 str(myfmt(oa))+",",
