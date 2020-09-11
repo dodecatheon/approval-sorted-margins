@@ -110,12 +110,12 @@ Repeat until no candidates remain with approval greater than a threshold (defaul
 
 * Tabulate preference, approval, score and pairwise votes on ballots that still have weight > 0. Total approval over these ballots is called exclusive approval, since it excludes any approval from previously used-up ballots.
 * Remove any candidate with exclusive approval below the approval threshold.
-* A winner is found, using one of the methods Preference Approval Sorted Margins, Preference, Score, STAR, or SSM.
+* A winner is found, using one of the methods Preference Approval Sorted Margins, Preference, Score, Vote 321, STAR, or SSM.
 
 Exhausting each winner's ballots completely removes any potential for a pushover
 strategy.
 
-Other than STAR, each of the possible methods is clone resistant. Advancing only
+Other than Vote 3-2-1 and STAR, each of the possible methods is clone resistant. Advancing only
 one winner in the remaining ballots removes clones.
 
 The resulting set of advanced candidates gives a reasonable selection among the
@@ -129,3 +129,12 @@ but strategic voters from party X would have to gamble that their favored candid
 an advancement round without their support, and with other voters from parties Y and Z
 similarly able to support the weaker candidates from party X, the game theoretic
 equilibrium will tend toward sincere preferences.
+
+### Vote 3-2-1 generalization to score ballots
+NB: Vote 3-2-1 is generalized to accommodate full score ballots with explicit Preference
+cutoff. Non-zero score is considered Approved. Above Preference Cutoff (either per ballot
+or above '-c CUTOFF' score level) is considered Preferred. Candidates are sorted in
+descending order of Preference, and the top three are selected. Next, the least approved
+of those three is eliminated. Finally, the most preferred pairwise of the top two is the
+321 winner. If default cutoff at score 0 is used, V321 is just Top-Two Approval instant
+runoff.
