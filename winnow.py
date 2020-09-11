@@ -17,9 +17,17 @@ Repeat until a threshold of votes are used up:
 Default winner selection method:
 \t- Preference-Approval Sorted Margins with explicit preference above Preference cutoff.\n
 Alternatives: 
-\t- Preference, Approval, Top Rating, Score, STAR, Score Sorted Margins.
+\t- Preference, Approval, Top Rating, Score, Vote 3-2-1, STAR, Score Sorted Margins.
 
 Default exclusive approval threshold 1/100 (1%)\n
+
+NB:\tVote 3-2-1 is generalized to accommodate full score ballots with explicit Preference
+\tcutoff. Non-zero score is considered Approved. Above Preference Cutoff (either per ballot
+\tor above '-c CUTOFF' score level) is considered Preferred. Candidates are sorted in
+\tdescending order of Preference, and the top three are selected. Next, the least approved
+\tof those three is eliminated. Finally, the most preferred pairwise of the top two is the
+\tV321 winner. If default cutoff at score 0 is used, V321 is just Top-Two Approval instant
+\trunoff.
 """
 import argparse
 from ballot_tools.csvtoballots import *
@@ -128,16 +136,18 @@ def winnow(ballots,
                           2:list(zip(Approval,TopRating,Pref,Score)), # Approval
                           3:list(zip(TopRating,Pref,Approval,Score)), # TopRating
                           4:list(zip(Score,TopRating,Approval,Pref)), # Score
-                          5:list(zip(Score,TopRating,Approval,Pref)), # STAR
-                          6:list(zip(Score,TopRating,Approval,Pref))  # SSM
+                          5:list(zip(Pref,Approval,TopRating,Score)), # V321
+                          6:list(zip(Score,TopRating,Approval,Pref)), # STAR
+                          7:list(zip(Score,TopRating,Approval,Pref))  # SSM
                           }[method]
             permlabel  = {0:"(Pref,Approval,TopRating,Score)", # PASM
                           1:"(Pref,Approval,TopRating,Score)", # Preference
                           2:"(Approval,TopRating,Pref,Score)", # Approval
                           3:"(TopRating,Pref,Approval,Score)", # TopRating
                           4:"(Score,TopRating,Approval,Pref)", # Score
-                          5:"(Score,TopRating,Approval,Pref)", # STAR
-                          6:"(Score,TopRating,Approval,Pref)"  # SSM
+                          5:"(Pref,Approval,TopRating,Score)", # V321
+                          6:"(Score,TopRating,Approval,Pref)", # STAR
+                          7:"(Score,TopRating,Approval,Pref)"  # SSM
                           }[method]
 
             permranking = np.array(sorted(np.arange(ncands),
@@ -155,12 +165,34 @@ def winnow(ballots,
                                   (A.T > A),
                                   cnames[cands],
                                   verbose=verbose)
-                permwinner = permranking[0]
             elif (method < 5):                          # Preference, Approval, TopRating, Score
                 permwinner = permranking[0]
-            elif method == 5 or method == 6:            # STAR / SSM
+            elif (method == 5):                         # V321
+                # Drop the lowest approved of the top 3 candidates already sorted by Preference
+                # but keep them in preference-sorted order.
+                v20,v21 = sorted(sorted(permranking[:3],
+                                        key=(lambda c:Approval[c]),
+                                        reverse=True)[:2],
+                                 key=(lambda c:permrating[c]),
+                                 reverse=True)
+                # Of the remaining top two, find the pairwise winner:
+                permwinner = int(v20)
+                if A[v21,v20] > A[v20,v21]:
+                    # The original ordering is only upset if the less-preferred
+                    # of the two makes a clear defeat of the other.
+                    # If it's a tie, the most-preferred wins.
+                    permwinner = int(v21)
+
+                if verbose > 1:
+                    print("Vote321:\n\tTop 3 candidates by preference:")
+                    print("\t{}".format(", ".join([cnames[cands[c]] for c in permranking[:3]])))
+                    print("\n\tThe two highest approved of those three are:")
+                    print("\t{}, {}".format(cnames[cands[v20]], cnames[cands[v21]]))
+                    print("\n\tPairwise winner between those two:", cnames[cands[permwinner]])
+
+            elif method == 6 or method == 7:            # STAR / SSM
                 permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose)
-                if method == 6:                         # SSM
+                if method == 7:                         # SSM
                     permwinner = permranking[0]
                 # else, permwinner = STAR_winner
 
@@ -226,13 +258,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=SmartDescriptionFormatter)
 
-    methods = ["PASM", "P", "A", "TR", "S", "STAR", "SSM"]
+    methods = ["PASM", "P", "A", "TR", "S", "V321", "STAR", "SSM"]
 
     method_description = ["PREFERENCE APPROVAL SORTED MARGINS",
                           "PREFERENCE",
                           "APPROVAL",
                           "TOP RATING",
                           "SCORE",
+                          "VOTE 3-2-1",
                           "SCORE THEN AUTOMATIC RUNOFF",
                           "SCORE SORTED MARGINS"]
 
