@@ -1,25 +1,24 @@
 #!/usr/bin/env python
 """\
 Run a primary election to winnow candidates. \n
-\n
-Uses Score ballots. Non-zero score indicates approval.
-Voters may optionally indicate a top preference cutoff. This is relevant for
-Preference Approval Sorted Margins.\n
-\n
-Repeat until a threshold of votes are used up:\n
-\n
-\t- Accumulate pairwise vote array, scores, and approval+preference.\n
-\n
-\n- Default method:\n
+
+Uses Score ballots. Non-zero score indicates approval.  Voters may optionally indicate
+a top preference cutoff. This is relevant for Preference Approval Sorted Margins.
+
+Repeat until a threshold of votes are used up:
+\t- Accumulate pairwise vote array, scores, and approval+preference.
+\t- Determine winner (see below)
+\t- After each winner is found, exhaust ballots giving non-zero
+\t  score to the winner, either (default) exhausting winner-approving ballots entirely, or
+\t  (optionally, using -x/--max50 flag) exhausting a max of 50% of remaining ballots.
+\t- Continue until (default) 7 candidates have been advanced, or there are no more
+\t  candidates with approval above the exclusive approval threshold.
+
+Default winner selection method:
 \t- Preference-Approval Sorted Margins with explicit preference above Preference cutoff.\n
-\t- Alternatives:\n 
-\t- Preference//Approval, Score, STAR, Score Sorted Margins.\n
-\t- After each winner is found, apply exhaustive reweighting to ballots giving non-zero\n
-\t  score to the winner, either (default) exhausting winner-approving ballots completely, or
-\t  optionally exhausting a max of 50% of remaining ballots.\n
-\t- Continue until (default) 7 candidates have been advanced, or there are no more\n
-\t  candidates with approval above the threshold.
-\n
+Alternatives: 
+\t- Preference, Approval, Top Rating, Score, STAR, Score Sorted Margins.
+
 Default exclusive approval threshold 1/100 (1%)\n
 """
 import argparse
@@ -108,6 +107,8 @@ def winnow(ballots,
         if (seat == 0):
             Total_Approval[cands] = Approval        # unpermute total approval
 
+        TopRating = S[maxscore,...]
+
         if ncands == 0:
 
             if verbose:
@@ -122,12 +123,22 @@ def winnow(ballots,
             if verbose > 1:
                 print("Only one candidate left:", cnames[winner])
         else:                               # ncands > 1
-            if (method < 2):                # PASM & Approval
-                permrating = list(zip(Pref,Approval,S[maxscore,...],Score))
-                permlabel = "(Preference, Approval, TopRating, Score)"
-            elif (method < 5):              # Score, STAR, SSM
-                permrating = list(zip(Score,S[maxscore,...],Approval,Pref))
-                permlabel = "(Score, Toprating, Approval, Preference)"
+            permrating = {0:list(zip(Pref,Approval,TopRating,Score)), # PASM
+                          1:list(zip(Pref,Approval,TopRating,Score)), # Preference
+                          2:list(zip(Approval,TopRating,Pref,Score)), # Approval
+                          3:list(zip(TopRating,Pref,Approval,Score)), # TopRating
+                          4:list(zip(Score,TopRating,Approval,Pref)), # Score
+                          5:list(zip(Score,TopRating,Approval,Pref)), # STAR
+                          6:list(zip(Score,TopRating,Approval,Pref))  # SSM
+                          }[method]
+            permlabel  = {0:"(Pref,Approval,TopRating,Score)", # PASM
+                          1:"(Pref,Approval,TopRating,Score)", # Preference
+                          2:"(Approval,TopRating,Pref,Score)", # Approval
+                          3:"(TopRating,Pref,Approval,Score)", # TopRating
+                          4:"(Score,TopRating,Approval,Pref)", # Score
+                          5:"(Score,TopRating,Approval,Pref)", # STAR
+                          6:"(Score,TopRating,Approval,Pref)"  # SSM
+                          }[method]
 
             permranking = np.array(sorted(np.arange(ncands),
                                           key=(lambda c:permrating[c]),
@@ -145,11 +156,11 @@ def winnow(ballots,
                                   cnames[cands],
                                   verbose=verbose)
                 permwinner = permranking[0]
-            elif (method < 3):                          # Pref/Approval, Score
+            elif (method < 5):                          # Preference, Approval, TopRating, Score
                 permwinner = permranking[0]
-            elif method == 3 or method == 4:            # STAR / SSM
+            elif method == 5 or method == 6:            # STAR / SSM
                 permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose)
-                if method == 4:                         # SSM
+                if method == 6:                         # SSM
                     permwinner = permranking[0]
                 # else, permwinner = STAR_winner
 
@@ -215,7 +226,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=SmartDescriptionFormatter)
 
-    methods = ["PASM", "PA", "Score", "STAR", "SSM"]
+    methods = ["PASM", "P", "A", "TR", "S", "STAR", "SSM"]
+
+    method_description = ["PREFERENCE APPROVAL SORTED MARGINS",
+                          "PREFERENCE",
+                          "APPROVAL",
+                          "TOP RATING",
+                          "SCORE",
+                          "SCORE THEN AUTOMATIC RUNOFF",
+                          "SCORE SORTED MARGINS"]
 
     parser.add_argument("-i", "--inputfile",
                         type=str,
@@ -247,10 +266,9 @@ def main():
                         type=str,
                         choices=methods,
                         default=methods[0],
-                        help=("Select method: PASM (Preference Approval Sorted Margins, "
-                        "a Condorcet method); PA (Preference//Approval); Score; STAR "
-                        "(Score Then Automatic Runoff); or SSM (Score Sorted Margins). "
-                        "[default: PASM]"))
+                        help=("Select method: " + "; ".join(["{} ({})".format(m,d)
+                                                             for m, d in zip(methods,method_description)])
+                                                + " [default: PASM]"))
     parser.add_argument("-t", "--filetype", type=str,
                         choices=["score", "rcv"],
                         default="score",
@@ -281,12 +299,6 @@ def main():
     except:
         print("Error, invalid method selected")
         return
-
-    method_description = ["PREFERENCE APPROVAL SORTED MARGINS",
-                          "PREFERENCE//APPROVAL",
-                          "SCORE",
-                          "STAR = Score Then Automatic Runoff, with SMV weighting",
-                          "SCORE SORTED MARGINS"]
 
     print(method_description[method])
 
