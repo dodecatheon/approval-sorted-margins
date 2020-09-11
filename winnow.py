@@ -107,8 +107,6 @@ def winnow(ballots,
         if (seat == 0):
             Total_Approval[cands] = Approval        # unpermute total approval
 
-        TopRating = S[maxscore,...]
-
         if ncands == 0:
 
             if verbose:
@@ -123,6 +121,8 @@ def winnow(ballots,
             if verbose > 1:
                 print("Only one candidate left:", cnames[winner])
         else:                               # ncands > 1
+            TopRating = S[maxscore,...]
+
             permrating = {0:list(zip(Pref,Approval,TopRating,Score)), # PASM
                           1:list(zip(Pref,Approval,TopRating,Score)), # Preference
                           2:list(zip(Approval,TopRating,Pref,Score)), # Approval
