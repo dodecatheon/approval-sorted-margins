@@ -26,7 +26,8 @@ NB:\tVote 3-2-1 is generalized to accommodate full score ballots with explicit P
 \tor above '-c CUTOFF' score level) is considered Preferred. Candidates are sorted in
 \tdescending order of Preference, and the top three are selected. Next, the least approved
 \tof those three is eliminated. Finally, the most preferred pairwise of the top two is the
-\tV321 winner. If default cutoff at score 0 is used, V321 is just Top-Two Approval instant
+\tV321 winner. While default preference cutoff for other methods is zero, for V321 the default
+\tcutoff is MAXSCORE - 1.  If the cutoff is set to zero, V321 is just Top-Two Approval instant
 \trunoff.
 """
 import argparse
@@ -42,6 +43,7 @@ myfmt = sm.myfmt
 def winnow(ballots,
            weights,
            cnames,
+           cands,
            numseats,
            method=0,
            invthreshlevel=32,
@@ -50,10 +52,6 @@ def winnow(ballots,
            max50=False,
            verbose=0):
     """Singe Winner winnowing election with score ballots"""
-
-    if dcindex < 0:
-        if cutoff == None:
-            cutoff = 0
 
     numballots, numcands = np.shape(ballots)
     ncands = int(numcands) # force copy
@@ -70,7 +68,12 @@ def winnow(ballots,
 
     maxscore = ballots.max()
 
-    cands = np.arange(numcands)
+    if dcindex < 0:
+        if cutoff == None:
+            if method == 5:             # V321
+                cutoff = maxscore - 1
+            else:
+                cutoff = 0
 
     winners = []
     overall_approval = []
@@ -159,13 +162,13 @@ def winnow(ballots,
                 for c in permranking:
                     print(cnames[cands[c]], permrating[c])
 
-            if (method == 0):                           # PASM
-                sm.sorted_margins(permranking,
-                                  permrating,
-                                  (A.T > A),
-                                  cnames[cands],
-                                  verbose=verbose)
-            elif (method < 5):                          # Preference, Approval, TopRating, Score
+            if (method < 5):                          # PASM, Preference, Approval, TopRating, Score
+                if (method == 0):                           # PASM
+                    sm.sorted_margins(permranking,
+                                      permrating,
+                                      (A.T > A),
+                                      cnames[cands],
+                                      verbose=verbose)
                 permwinner = permranking[0]
             elif (method == 5):                         # V321
                 # Drop the lowest approved of the top 3 candidates already sorted by Preference
@@ -311,6 +314,10 @@ def main():
                         default=False,
                         help="""Exhausting a maximum of 50 percent of remaining ballots for each candidate
                         advanced [default: False]""")
+    parser.add_argument("--rerun",
+                        action='store_true',
+                        default=False,
+                        help="Rerun method with just the first round winners [default: False]")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity (increase by repetition) [default: 0]")
@@ -320,6 +327,8 @@ def main():
     ftype={'score':0, 'rcv':1}[args.filetype]
 
     ballots, weights, cnames = csvtoballots(args.inputfile,ftype=ftype)
+    numballots, numcands = np.shape(ballots)
+    cands = np.arange(numcands)
 
     dcindex = find_dcindex(cnames,dcname=args.deprecated_candidate)
 
@@ -350,6 +359,7 @@ def main():
      exhausted_votes) = winnow(ballots,
                                weights,
                                cnames,
+                               cands,
                                args.numseats,
                                method=method,
                                invthreshlevel=args.inverse_threshold_level,
@@ -379,6 +389,21 @@ def main():
                                                 str(myfmt(oa))+",",
                                                 str(myfmt(xa))+",",
                                                 str(myfmt(xv))))
+
+    if args.rerun:
+        print("\n", "- "*30, "\nRe-running for single winner with only winnowed candidates:\n")
+        (rw, oa, xa, xv) = winnow(ballots,
+                                  weights,
+                                  cnames,
+                                  np.array(winners),
+                                  1,
+                                  method=method,
+                                  invthreshlevel=args.inverse_threshold_level,
+                                  cutoff=args.cutoff,
+                                  dcindex=dcindex,
+                                  max50=args.max50,
+                                  verbose=args.verbose)
+        print("Final winner: ", cnames[rw[0]])
 
 if __name__ == "__main__":
     main()
