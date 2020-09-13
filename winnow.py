@@ -54,12 +54,12 @@ def winnow(ballots,
     """Singe Winner winnowing election with score ballots"""
 
     numballots, numcands = np.shape(ballots)
-    ncands = int(numcands) # force copy
+    ncands = len(cands)
 
     if (numseats > ncands):
         print("*** WARNING, # seats > # candidates! ***")
         print("Resetting # seats to", ncands)
-        numseats = int(numcands)
+        numseats = len(cands)
 
     numvotes = weights.sum()
     numvotes_orig = float(numvotes)  # Force a copy
@@ -74,6 +74,8 @@ def winnow(ballots,
                 cutoff = maxscore - 1
             else:
                 cutoff = 0
+            if verbose:
+                print("Preference cutoff not set, so default cutoff set to", cutoff)
 
     winners = []
     overall_approval = []
@@ -86,7 +88,7 @@ def winnow(ballots,
 
     numseatsm1 = numseats - 1
 
-    Total_Approval = np.zeros((ncands))
+    Total_Approval = np.zeros((numcands))
 
     for seat in range(numseats):
 
@@ -115,13 +117,14 @@ def winnow(ballots,
                                                           cutoff=cutoff,
                                                           dcindex=dcindex,
                                                           verbose=verbose)
-        if (seat == 0):
-            Total_Approval[cands] = Approval        # unpermute total approval
+        if (seat == 0) and ncands > 0:
+            Total_Approval[cands] = Approval
 
         if ncands == 0:
 
             if verbose:
-                print("Halting: No more qualified candidates above {}% approval".format(myfmt(100/invthreshlevel)))
+                print(("Halting: No more qualified "
+                       "candidates above {}% approval").format(myfmt(100./invthreshlevel)))
             break
 
         elif ncands == 1:
@@ -327,6 +330,9 @@ def main():
     ftype={'score':0, 'rcv':1}[args.filetype]
 
     ballots, weights, cnames = csvtoballots(args.inputfile,ftype=ftype)
+    # Save a copy of original weights
+    weights_orig = np.array(weights)
+
     numballots, numcands = np.shape(ballots)
     cands = np.arange(numcands)
 
@@ -391,9 +397,10 @@ def main():
                                                 str(myfmt(xv))))
 
     if args.rerun:
-        print("\n", "- "*30, "\nRe-running for single winner with only winnowed candidates:\n")
+        print("\n")
+        print("- "*30, "\nRe-running for single winner with only winnowed candidates:\n")
         (rw, oa, xa, xv) = winnow(ballots,
-                                  weights,
+                                  weights_orig,
                                   cnames,
                                   np.array(winners),
                                   1,
