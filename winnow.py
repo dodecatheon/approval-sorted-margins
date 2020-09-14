@@ -11,8 +11,9 @@ Repeat until a threshold of votes are used up:
 \t- After each winner is found, exhaust ballots giving non-zero
 \t  score to the winner, either (default) exhausting winner-approving ballots entirely, or
 \t  (optionally, using -x/--max50 flag) exhausting a max of 50% of remaining ballots.
-\t- Continue until (default) 7 candidates have been advanced, or there are no more
-\t  candidates with approval above the exclusive approval threshold.
+\t- Continue until (default) 7 candidates have been advanced, there are no more
+\t  candidates with approval above the exclusive approval threshold, or the total votes
+\t  remaining are below 5%.
 
 Default winner selection method:
 \t- Preference-Approval Sorted Margins with explicit preference above Preference cutoff.\n
@@ -107,6 +108,7 @@ def winnow(ballots,
          A,
          Pref,
          Approval,
+         Tied,
          Score ) = tabulate.pairwise_pref_approval_scores(ballots,
                                                           weights,
                                                           cands,
@@ -183,18 +185,31 @@ def winnow(ballots,
                                  reverse=True)
                 # Of the remaining top two, find the pairwise winner:
                 permwinner = int(v20)
-                if A[v21,v20] > A[v20,v21]:
+                permloser  = int(v21)
+                winnerscore = A[v20,v21]
+                loserscore = A[v21,v20]
+                equalrated = Tied[v20,v21]
+                winnername = cnames[cands[permwinner]]
+                losername = cnames[cands[permloser]]
+                if loserscore > winnerscore:
                     # The original ordering is only upset if the less-preferred
                     # of the two makes a clear defeat of the other.
                     # If it's a tie, the most-preferred wins.
-                    permwinner = int(v21)
+                    # Do the swaps:
+                    winnerscore,loserscore = loserscore,winnerscore
+                    permwinner,permloser = permloser,permwinner
+                    winnername,losername = losername,winnername
 
                 if verbose > 1:
                     print("Vote321:\n\tTop 3 candidates by preference:")
                     print("\t{}".format(", ".join([cnames[cands[c]] for c in permranking[:3]])))
                     print("\n\tThe two highest approved of those three are:")
                     print("\t{}, {}".format(cnames[cands[v20]], cnames[cands[v21]]))
-                    print("\n\tPairwise winner between those two:", cnames[cands[permwinner]])
+                    print(("\n\tPairwise winner:  "
+                           "{}@{} >= {}@{}, "
+                           "Tied and approved on {} ballots").format(winnername,myfmt(winnerscore),
+                                                                     losername,myfmt(loserscore),
+                                                                     myfmt(equalrated)))
 
             elif method == 6 or method == 7:            # STAR / SSM
                 permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose)
@@ -254,7 +269,14 @@ def winnow(ballots,
 
         if ncands == 0:
             if verbose > 0:
-                print("Halting:  No more candidates remaining")
+                print("*** Halting:  No more candidates remaining")
+            break
+
+        # Don't include the tail of candidates with approval between 1 and 5 percent
+        # if there is less than 5% remaining to be looked at.
+        if percent_remaining < 5:
+            if verbose:
+                print("*** Halting, remaining vote below 5%")
             break
 
     return(winners,overall_approval,exclusive_approval,exhausted_votes)
@@ -317,10 +339,10 @@ def main():
                         default=False,
                         help="""Exhausting a maximum of 50 percent of remaining ballots for each candidate
                         advanced [default: False]""")
-    parser.add_argument("--rerun",
+    parser.add_argument("--runoff",
                         action='store_true',
                         default=False,
-                        help="Rerun method with just the first round winners [default: False]")
+                        help="After advancing candidates, hold a runoff using the same method [default: False]")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity (increase by repetition) [default: 0]")
@@ -396,21 +418,26 @@ def main():
                                                 str(myfmt(xa))+",",
                                                 str(myfmt(xv))))
 
-    if args.rerun:
+        
+    if args.runoff:
         print("\n")
-        print("- "*30, "\nRe-running for single winner with only winnowed candidates:\n")
-        (rw, oa, xa, xv) = winnow(ballots,
-                                  weights_orig,
-                                  cnames,
-                                  np.array(winners),
-                                  1,
-                                  method=method,
-                                  invthreshlevel=args.inverse_threshold_level,
-                                  cutoff=args.cutoff,
-                                  dcindex=dcindex,
-                                  max50=args.max50,
-                                  verbose=args.verbose)
-        print("Final winner: ", cnames[rw[0]])
+        if numseats == 1:
+            print("Only one winner advanced from first round, no runoff necessary")
+            print("Final winner: ", cnames[winners[0]])
+        else:
+            print("- "*30, "\nRunoff the same method for single winner with winnowed candidates:\n")
+            (rw, oa, xa, xv) = winnow(ballots,
+                                      weights_orig,
+                                      cnames,
+                                      np.array(winners),
+                                      1,                        # Single winner only
+                                      method=method,
+                                      invthreshlevel=args.inverse_threshold_level,
+                                      cutoff=args.cutoff,
+                                      dcindex=dcindex,
+                                      max50=args.max50,
+                                      verbose=args.verbose)
+            print("Final winner: ", cnames[rw[0]])
 
 if __name__ == "__main__":
     main()

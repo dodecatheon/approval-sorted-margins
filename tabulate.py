@@ -145,6 +145,8 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
     AA = np.zeros((numcands,numcands))
     # S[r,x]: Total votes at rating r for candidate x
     SS = np.zeros((maxscorep1,numcands))
+    # T: pairwise array for ties.
+    TT = np.zeros((numcands,numcands))
 
     # Pref[x]: Total preference for candidate x
     PP = np.zeros((numcands))
@@ -160,6 +162,7 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
                 rscores = np.where(ballot==r,w,0)
                 SS[r]  += rscores
                 AA     += np.multiply.outer(rscores,np.where(ballot<r,1,0))
+                TT     += np.multiply.outer(rscores,np.where(ballot==r,1,0))
             for r in range(maxscore,cutoff,-1):
                 PP     += np.where(ballot==r,w,0)
     else:
@@ -171,6 +174,7 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
                 rscores = np.where(ballot==r,w,0)
                 SS[r]  += rscores
                 AA     += np.multiply.outer(rscores,np.where(ballot<r,1,0))
+                TT     += np.multiply.outer(rscores,np.where(ballot==r,1,0))
         # Preference totals = votes against the Preference cutoff candidate
         PP = np.array(AA[...,dcindex])
         AA[dcindex,dcindex] = 0.0
@@ -179,6 +183,7 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
     S = np.zeros((0,0))
     Approval = np.zeros((0))
     A = np.zeros((0,0))
+    Tied = np.zeros((0,0))
     Score = np.zeros((0))
     Pref = np.zeros((0))
 
@@ -198,8 +203,10 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
 
     # row permutation in NumPy is not quite as simple as column permutation:
     A = np.zeros((ncands,ncands))
+    Tied = np.zeros((ncands,ncands))
     for i,c in enumerate(cands):
         A[i] = AA[c][cands]
+        Tied[i] = TT[c][cands]
 
     # Total preference, restricted to just candidates:
     Pref = PP[cands]
@@ -218,5 +225,5 @@ def pairwise_pref_approval_scores(ballots,weights,cands,cnames,maxscore,maxscore
         for c, row in zip(cnames[cands],A):
             print(" {} [ ".format(c),", ".join([myfmt(x) for x in row]),"]")
 
-    return(ncands,cands,S,A,Pref,Approval,Score)
+    return(ncands,cands,S,A,Pref,Approval,Tied,Score)
 
