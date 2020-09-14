@@ -294,7 +294,7 @@ def main():
                           "TOP RATING",
                           "SCORE",
                           "VOTE 3-2-1",
-                          "SCORE THEN AUTOMATIC RUNOFF",
+                          "SCORE THEN AUTOMATIC RUNOFF (STAR)",
                           "SCORE SORTED MARGINS"]
 
     parser.add_argument("-i", "--inputfile",
@@ -343,6 +343,13 @@ def main():
                         action='store_true',
                         default=False,
                         help="After advancing candidates, hold a runoff using the same method [default: False]")
+    parser.add_argument("--runoff_method",
+                        type=str,
+                        choices=methods,
+                        default=None,
+                        help=("Select method to use for runoff: " + "; ".join(["{} ({})".format(m,d)
+                                                             for m, d in zip(methods,method_description)])
+                                                + " [default: same as first round method]"))
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity (increase by repetition) [default: 0]")
@@ -364,11 +371,12 @@ def main():
 
     methargs = np.arange(len(methods))
 
-    try:
-        method = dict(zip(methods,methargs))[args.select_method]
-    except:
-        print("Error, invalid method selected")
-        return
+    method = dict(zip(methods,methargs))[args.select_method]
+
+    # By default, runoff uses same runoff_method as method
+    runoff_method = method
+    if args.runoff and args.runoff_method:
+        runoff_method = dict(zip(methods,methargs))[args.runoff_method]
 
     print(method_description[method])
 
@@ -425,7 +433,9 @@ def main():
             print("Only one winner advanced from first round, no runoff necessary")
             print("Final winner: ", cnames[winners[0]])
         else:
-            print("- "*30, "\nRunoff the same method for single winner with winnowed candidates:\n")
+            print("- "*30,
+                  ("\nRunoff using {} for single winner "
+                  "with winnowed candidates:\n").format(method_description[runoff_method]))
             (rw, oa, xa, xv) = winnow(ballots,
                                       weights_orig,
                                       cnames,
@@ -437,7 +447,7 @@ def main():
                                       dcindex=dcindex,
                                       max50=args.max50,
                                       verbose=args.verbose)
-            print("Final winner: ", cnames[rw[0]])
+            print("\nFINAL WINNER: ", cnames[rw[0]])
 
 if __name__ == "__main__":
     main()
