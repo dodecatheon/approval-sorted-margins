@@ -3,7 +3,8 @@
 Run a primary election to winnow candidates. \n
 
 Uses Score ballots. Non-zero score indicates approval.  Voters may optionally indicate
-a top preference cutoff. This is relevant for Preference Approval Sorted Margins.
+a top preference cutoff. This is relevant for Preference Approval Sorted Margins and
+Vote 3-2-1.
 
 Repeat until a threshold of votes are used up:
 \t- Accumulate pairwise vote array, scores, and approval+preference.
@@ -27,9 +28,8 @@ NB:\tVote 3-2-1 is generalized to accommodate full score ballots with explicit P
 \tor above '-c CUTOFF' score level) is considered Preferred. Candidates are sorted in
 \tdescending order of Preference, and the top three are selected. Next, the least approved
 \tof those three is eliminated. Finally, the most preferred pairwise of the top two is the
-\tV321 winner. While default preference cutoff for other methods is zero, for V321 the default
-\tcutoff is MAXSCORE - 1.  If the cutoff is set to zero, V321 is just Top-Two Approval instant
-\trunoff.
+\tV321 winner. Default preference cutoff if not set is MAXSCORE - 1.
+\tIf the cutoff is set to zero, V321 is just Top-Two Approval instant runoff.
 """
 import argparse
 from ballot_tools.csvtoballots import *
@@ -71,10 +71,7 @@ def winnow(ballots,
 
     if dcindex < 0:
         if cutoff == None:
-            if method == 5:             # V321
-                cutoff = maxscore - 1
-            else:
-                cutoff = 0
+            cutoff = maxscore - 1
             if verbose:
                 print("Preference cutoff not set, so default cutoff set to", cutoff)
 
@@ -163,7 +160,7 @@ def winnow(ballots,
                                           reverse=True))
 
             if verbose:
-                print("Candidate,", permlabel)
+                print("\nCandidate,", permlabel)
                 for c in permranking:
                     print(cnames[cands[c]], permrating[c])
 
@@ -174,15 +171,29 @@ def winnow(ballots,
                                       (A.T > A),
                                       cnames[cands],
                                       verbose=verbose)
+
+                    if (verbose > 0) and (len(permranking)>1):
+                        pw  = permranking[0]
+                        pru = permranking[1]
+                        pw_name = cnames[cands[pw]]
+                        pru_name = cnames[cands[pru]]
+                        print('[PASM] Winner vs. PASM-Runner-up pairwise result: ',
+                              ('{} @ {} >= {} @ {}'
+                               ', with {} votes tied & approved').format(pw_name,myfmt(A[pw,pru]),
+                                                                         pru_name,myfmt(A[pru,pw]),
+                                                                         myfmt(Tied[pw,pru])))
+
                 permwinner = permranking[0]
             elif (method == 5):                         # V321
                 # Drop the lowest approved of the top 3 candidates already sorted by Preference
                 # but keep them in preference-sorted order.
-                v20,v21 = sorted(sorted(permranking[:3],
-                                        key=(lambda c:Approval[c]),
-                                        reverse=True)[:2],
-                                 key=(lambda c:permrating[c]),
-                                 reverse=True)
+                v20, v21 = permranking[:2]
+                if ncands > 2:
+                    v20,v21 = sorted(sorted(permranking[:3],
+                                            key=(lambda c:Approval[c]),
+                                            reverse=True)[:2],
+                                     key=(lambda c:permrating[c]),
+                                     reverse=True)
                 # Of the remaining top two, find the pairwise winner:
                 permwinner = int(v20)
                 permloser  = int(v21)
@@ -201,15 +212,20 @@ def winnow(ballots,
                     winnername,losername = losername,winnername
 
                 if verbose > 1:
-                    print("Vote321:\n\tTop 3 candidates by preference:")
-                    print("\t{}".format(", ".join([cnames[cands[c]] for c in permranking[:3]])))
-                    print("\n\tThe two highest approved of those three are:")
-                    print("\t{}, {}".format(cnames[cands[v20]], cnames[cands[v21]]))
+                    print("\n\tVote321:")
+                    if ncands == 2:
+                        print("\tOnly two candidates, {} & {}".format(cnames[cands[v20]],
+                                                                      cnames[cands[v21]]))
+                    else:   # ncands > 2
+                        print("\tTop 3 candidates by preference:")
+                        print("\t{}".format(", ".join([cnames[cands[c]] for c in permranking[:3]])))
+                        print("\n\tThe two highest approved of those three are:")
+                        print("\t{}, {}".format(cnames[cands[v20]], cnames[cands[v21]]))
                     print(("\n\tPairwise winner:  "
-                           "{}@{} >= {}@{}, "
-                           "Tied and approved on {} ballots").format(winnername,myfmt(winnerscore),
-                                                                     losername,myfmt(loserscore),
-                                                                     myfmt(equalrated)))
+                           '{} @ {} >= {} @ {}, '
+                           "with {} votes tied & approved").format(winnername,myfmt(winnerscore),
+                                                                   losername,myfmt(loserscore),
+                                                                   myfmt(equalrated)))
 
             elif method == 6 or method == 7:            # STAR / SSM
                 permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose)
@@ -305,7 +321,7 @@ def main():
                         type=int,
                         required=False,
                         default=None,
-                        help="Approval cutoff rating [default: None]")
+                        help="Approval cutoff rating [default: MAXSCORE - 1]")
     parser.add_argument("-d", "--deprecated_candidate",
                         type=str,
                         required=False,
@@ -441,7 +457,7 @@ def main():
                                       cnames,
                                       np.array(winners),
                                       1,                        # Single winner only
-                                      method=method,
+                                      method=runoff_method,
                                       invthreshlevel=args.inverse_threshold_level,
                                       cutoff=args.cutoff,
                                       dcindex=dcindex,
