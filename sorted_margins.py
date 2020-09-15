@@ -105,7 +105,7 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
             print('\t{}\n'.format(' > '.join([cnames[c] for c in ranking])))
 
     if verbose > 1:
-        print("\tCandidates in pairwise order")
+        print("\tCandidate ranking is now in order pairwise")
 
     if verbose > 0:
         smith = smith_from_losses(np.where(loss_array, 1, 0),np.arange(ncands))

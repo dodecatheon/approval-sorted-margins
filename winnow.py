@@ -55,12 +55,15 @@ def winnow(ballots,
     """Singe Winner winnowing election with score ballots"""
 
     numballots, numcands = np.shape(ballots)
-    ncands = len(cands)
 
+    # Ensure preference approval candidate not in candidate list:
+    cands = np.compress(cands != dcindex, cands)
+
+    ncands = len(cands)
     if (numseats > ncands):
         print("*** WARNING, # seats > # candidates! ***")
         print("Resetting # seats to", ncands)
-        numseats = len(cands)
+        numseats = int(ncands)
 
     numvotes = weights.sum()
     numvotes_orig = float(numvotes)  # Force a copy
@@ -116,6 +119,9 @@ def winnow(ballots,
                                                           cutoff=cutoff,
                                                           dcindex=dcindex,
                                                           verbose=verbose)
+
+        inds = np.arange(ncands)
+
         if (seat == 0) and ncands > 0:
             Total_Approval[cands] = Approval
 
@@ -128,9 +134,9 @@ def winnow(ballots,
 
         elif ncands == 1:
             # Handle only-one-quota-threshold-qualifying-candidate case:
-            permwinner = 0
-            winner = cands[0]
-            permranking = np.array([cands[0]])
+            permwinner = inds[0]
+            winner = cands[permwinner]
+            permranking = np.array([cands[permwinner]])
             if verbose > 1:
                 print("Only one candidate left:", cnames[winner])
         else:                               # ncands > 1
@@ -172,16 +178,16 @@ def winnow(ballots,
                                       cnames[cands],
                                       verbose=verbose)
 
-                    if (verbose > 0) and (len(permranking)>1):
-                        pw  = permranking[0]
-                        pru = permranking[1]
-                        pw_name = cnames[cands[pw]]
-                        pru_name = cnames[cands[pru]]
-                        print('[PASM] Winner vs. PASM-Runner-up pairwise result: ',
-                              ('{} @ {} >= {} @ {}'
-                               ', with {} votes tied & approved').format(pw_name,myfmt(A[pw,pru]),
-                                                                         pru_name,myfmt(A[pru,pw]),
-                                                                         myfmt(Tied[pw,pru])))
+                if (method == 0) and (verbose > 0) and (ncands>1):   # PASM
+                    pw  = permranking[0]
+                    pru = permranking[1]
+                    pw_name = cnames[cands[pw]]
+                    pru_name = cnames[cands[pru]]
+                    print('[PASM] Winner vs. PASM-Runner-up pairwise result: ',
+                          ('{} @ {} >= {} @ {}'
+                           ', with {} votes tied & approved').format(pw_name,myfmt(A[pw,pru]),
+                                                                     pru_name,myfmt(A[pru,pw]),
+                                                                     myfmt(Tied[pw,pru])))
 
                 permwinner = permranking[0]
             elif (method == 5):                         # V321
@@ -382,6 +388,8 @@ def main():
     cands = np.arange(numcands)
 
     dcindex = find_dcindex(cnames,dcname=args.deprecated_candidate)
+
+    cands = np.compress(cands != dcindex, cands)
 
     print("- "*30)
 
