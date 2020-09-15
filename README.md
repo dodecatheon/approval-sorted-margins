@@ -102,8 +102,8 @@ Finally, both ASM and SSM can be used in a primary-style winnowing election.
 Code for this can be found in 'winnow.py'.
 
 For a winnowing election, vote using score ballots. Any non-zero score is taken
-as approval. A voter can optionally specify a Preference cutoff above the default
-preference cutoff score of zero. A score above the cutoff is counted as a Preference
+as approval. A voter can optionally specify a Preference cutoff lower than the default
+preference cutoff score of MAXSCORE-1. A score above the cutoff is counted as a Preference
 vote.
 
 Repeat until no candidates remain with approval greater than a threshold (default 1%).
@@ -136,5 +136,5 @@ cutoff. Non-zero score is considered Approved. Above Preference Cutoff (either p
 or above '-c CUTOFF' score level) is considered Preferred. Candidates are sorted in
 descending order of Preference, and the top three are selected. Next, the least approved
 of those three is eliminated. Finally, the most preferred pairwise of the top two is the
-321 winner. If default cutoff at score 0 is used, V321 is just Top-Two Approval instant
+321 winner. If preference cutoff at score 0 is used, V321 is reduces to Top-Two Approval instant
 runoff.
