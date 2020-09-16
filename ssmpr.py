@@ -45,17 +45,18 @@ import tabulate
 
 myfmt = sm.myfmt
 
-def ssm(ranking,Score,A,cnames,verbose=0):
+def ssm(ranking,Score,A,cnames,verbose=0,Tied=None):
     """"The basic Score Sorted Margins method (rankings inferred from ratings),
     starting from non-normalized scores and the pairwise array"""
     # Assume the ranking is pre-seeded
     # ranking = Score.argsort()[::-1] # Seed the ranking using Score
     sw = ranking[0]
     STAR_winner = ranking[0]
+    STAR_runnerup = ranking[1]
     if len(ranking) > 1:
         sru = ranking[1]
         if A[sru,sw] > A[sw,sru]:
-            STAR_winner = ranking[1]
+            STAR_winner, STAR_runnerup = STAR_runnerup, STAR_winner
 
     sm.sorted_margins(ranking,Score,A.T > A,cnames,verbose=verbose)
     if (verbose > 0) and (len(ranking)>1):
@@ -64,24 +65,42 @@ def ssm(ranking,Score,A,cnames,verbose=0):
         w_name = cnames[w]
         ru_name = cnames[ru]
         sw_name = cnames[sw]
+        sru_name = cnames[sru]
         STARw_name = cnames[STAR_winner]
+        STARru_name = cnames[STAR_runnerup]
         w_score = Score[w]
         sw_score = Score[sw]
         STARw_score = Score[STAR_winner]
 
-        print('[SSM] Winner vs. SSM-Runner-up pairwise result: ',
-              '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,ru]),
-                                      ru_name,myfmt(A[ru,w])))
+        ssm_tied = ""
+        ssm_STAR_tied = ""
+        score_tied = ""
+        ssm_score_tied = ""
+        if (np.shape(Tied)):
+            ssm_tied = ", with {} votes tied & approved".format(myfmt(Tied[w,ru]))
+            ssm_STAR_tied = ", with {} votes tied & approved".format(myfmt(Tied[w,STAR_winner]))
+            score_tied = ", with {} votes tied & approved".format(myfmt(Tied[sw,sru]))
+            ssm_score_tied = ", with {} votes tied & approved".format(myfmt(Tied[w,sw]))
+
+        print(('[SSM] Winner vs. SSM-Runner-up pairwise result:  ' + 
+               '{} @ {} >= {} @ {}' +
+               ssm_tied).format(w_name,myfmt(A[w,ru]),
+                               ru_name,myfmt(A[ru,w])))
         if STAR_winner != sw:
-            print('STAR Winner defeats Score winner, pairwise:  ',
-                  '{}:{} >= {}:{}'.format(STARw_name,myfmt(A[STAR_winner,sw]),
-                                          sw_name,myfmt(A[sw,STAR_winner])))
+            print(('STAR Winner defeats Score winner, pairwise:  ' +
+                  '{} @ {} >= {} @ {}' +
+                  score_tied).format(STARw_name,myfmt(A[STAR_winner,sw]),
+                                     sw_name,myfmt(A[sw,STAR_winner])))
         else:
             print('STAR winner == Score winner')
+            print(('Score Winner vs. Score runner-up, pairwise:  ' +
+                   '{} @ {} >= {} @ {}' +
+                   score_tied).format(sw_name,myfmt(A[sw,sru]),
+                                      sru_name,myfmt(A[sru,sw])))
 
         if w == sw:
             if w == STAR_winner:
-                print('[SSM] Winner is both top scorer and STAR winner')
+                print('[SSM] Winner is both Score winner and STAR winner')
             else:
                 print('[SSM] Winner is Score winner, but not STAR winner')
         else:
@@ -89,16 +108,19 @@ def ssm(ranking,Score,A,cnames,verbose=0):
                 print('[SSM] Winner is not Score winner, but is STAR winner')
 
             if sw != ru:
-                print('[SSM] Winner vs. Score winner, pairwise: ',
-                      '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,sw]),
+                print(('[SSM] Winner vs. Score winner, pairwise: ' +
+                       '{} @ {} >= {} @ {}' +
+                       ssm_score_tied).format(w_name,myfmt(A[w,sw]),
                                               sw_name,myfmt(A[sw,w])))
-            print('[SSM] Winner vs. Score Winner, score: ',
-                  '{}:{} <= {}:{}'.format(w_name,myfmt(w_score),
+            print(('[SSM] Winner vs. Score Winner, score: ' +
+                   '{} @ {} <= {} @ {}' +
+                   ssm_score_tied).format(w_name,myfmt(w_score),
                                           sw_name,myfmt(sw_score)))
         if sw != STAR_winner and w != STAR_winner:
-            print('[SSM] Winner vs. STAR winner, pairwise:  ',
-                  '{}:{} >= {}:{}'.format(w_name,myfmt(A[w,STAR_winner]),
-                                          STARw_name,myfmt(A[STAR_winner,w])))
+            print(('[SSM] Winner vs. STAR winner, pairwise:  ' +
+                   '{} @ {} >= {} @ {}' +
+                   ssm_STAR_tied).format(w_name,myfmt(A[w,STAR_winner]),
+                                         STARw_name,myfmt(A[STAR_winner,w])))
     return STAR_winner
 
 

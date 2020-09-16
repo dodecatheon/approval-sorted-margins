@@ -234,7 +234,7 @@ def winnow(ballots,
                                                                    myfmt(equalrated)))
 
             elif method == 6 or method == 7:            # STAR / SSM
-                permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose)
+                permwinner = ssm(permranking,permrating,A,cnames[cands],verbose=verbose,Tied=Tied)
                 if method == 7:                         # SSM
                     permwinner = permranking[0]
                 # else, permwinner = STAR_winner
@@ -280,10 +280,11 @@ def winnow(ballots,
         exhausted_votes += [numvotes_old - numvotes]
 
         if verbose:
-            print("Winner's votes per rating: ",
-                  (", ".join(["{}:{}".format(j,myfmt(f))
-                              for j, f in zip(scorerange[-1:0:-1],
-                                              S[-1:0:-1,permwinner])])))
+            print("Winner's non-zero votes per rating: ",
+                  (", ".join(["{}:{}".format(j,myfmt(s))
+                              for j, s in zip(scorerange[-1:0:-1],
+                                              S[-1:0:-1,permwinner])
+                              if s > 0])))
             print("After reweighting ballots:")
             print("\t% of exclusive vote for this winner: {}%".format(myfmt(percent_exclusive)))
             print("\t% of vote represented at this step:  {}%".format(myfmt(percent_represented)))
@@ -391,7 +392,6 @@ def main():
 
     cands = np.compress(cands != dcindex, cands)
 
-    print("- "*30)
 
     methargs = np.arange(len(methods))
 
@@ -402,7 +402,9 @@ def main():
     if args.runoff and args.runoff_method:
         runoff_method = dict(zip(methods,methargs))[args.runoff_method]
 
-    print(method_description[method])
+    print("- "*30)
+    print("*** Voting method: ",method_description[method], "***")
+    print("- "*30)
 
     if args.verbose > 3:
         print("- "*30)
