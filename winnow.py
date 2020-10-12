@@ -69,6 +69,7 @@ def winnow(ballots,
     numvotes_orig = float(numvotes)  # Force a copy
 
     threshlevel = numvotes / invthreshlevel
+    fivepctthresh = numvotes / 20.
 
     maxscore = ballots.max()
 
@@ -115,7 +116,9 @@ def winnow(ballots,
                                                           cnames,
                                                           maxscore,
                                                           maxscorep1,
-                                                          threshlevel=threshlevel,
+                                                          threshlevel=(fivepctthresh
+                                                                       if seat == 0
+                                                                       else threshlevel),
                                                           cutoff=cutoff,
                                                           dcindex=dcindex,
                                                           verbose=verbose)

@@ -43,7 +43,7 @@ def scores(ballots,weights,cands,maxscore,quota=0.0,verbose=0):
         # qtar: Quota Threshold Approval Rating
         # For those candidates whose Total exceeds the quota for the first time,
         # set qtar for that candidate to the current rating.
-        qtar = np.where(qtar==0,np.where(Total>quota,r,qtar),qtar)
+        qtar = np.where(qtar==0,np.where(Total>=quota,r,qtar),qtar)
 
         for i in inds:
             if qtar[i] < r:

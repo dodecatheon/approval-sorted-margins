@@ -183,7 +183,7 @@ def ssmpr(ballots, weights, cnames, numseats, reweighting=0,verbose=0, method=0)
         perm_qc = np.compress(qtar>0,inds) # permuted indices of qualified candidates
         nqcands = len(perm_qc)
         if verbose:
-            print("Number of quota-threshold qualifying candidates =",ncands)
+            print("Number of quota-threshold qualifying candidates =",nqcands)
 
         if nqcands == 1:
             # Handle only-one-quota-threshold-qualifying-candidate case:
