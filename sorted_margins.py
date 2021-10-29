@@ -63,7 +63,7 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
         if m < mmin:
             mmin = m
         if m > mmax:
-            mmin = m
+            mmax = m
     maxdiff = mydiff(mmin,mmax)
     if verbose > 1:
         print(". "*30)
@@ -82,7 +82,7 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
             if (loss_array[c_im1,c_i]):
                 outoforder.append((c_im1,c_i))
                 apprdiff.append(mydiff(apprsort[i],apprsort[im1]))
-                if apprdiff[-1] < mindiffval:
+                if (apprdiff[-1] < mindiffval) or (mindiff == ncands) :
                     mindiff = im1
                     mindiffval = apprdiff[-1]
         # terminate when no more pairs are out of order pairwise:
@@ -111,8 +111,13 @@ def sorted_margins(ranking,metric,loss_array,cnames,verbose=0):
         smith = smith_from_losses(np.where(loss_array, 1, 0),np.arange(ncands))
         print(". "*30)
         if len(smith) == 1:
-            print("[SORTED MARGINS] Pairwise winner == Sorted Margins winner: ", cnames[ranking[0]])
+            print("[SORTED MARGINS] Pairwise winner == Sorted Margins winner: ",
+                  cnames[ranking[0]])
         else:
-            print("[SORTED MARGINS] No pairwise winner; Smith set:", [cnames[c] for c in ranking if c in smith], "-- Sorted Margins winner:", cnames[ranking[0]])
+            print("[SORTED MARGINS] No pairwise winner")
+            print("[SORTED MARGINS] Smith set: {", 
+                  ", ".join([cnames[c] for c in ranking if c in smith]),
+                  "}")
+            print("[SORTED MARGINS] Winner:", cnames[ranking[0]])
 
     return
