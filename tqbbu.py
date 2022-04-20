@@ -164,6 +164,11 @@ def select_one_TQBBU(ballots,
                     2:tqbHarmonic,
                     3:tqbGeometric}[tqb_option]
 
+    if verbose > 1:
+        nk = int(total_budget/cost) + 1
+        print("Verifying tqb_function, nk =", nk)
+        print(", ".join([myfmt(tqb_function(100.,k)) for k in range(nk)]))
+
     deltas = np.zeros((numcands),dtype=int)
     tqbsums = np.zeros((numcands))
     tqbsum_tuples = []
@@ -327,11 +332,11 @@ def select_one_TQBBU(ballots,
 
 def spend_budget(ballots, weights, budgets, winner, price, delta, spendable_budget, verbose=0):
     # Verify that cost is being spent:
+    spent = (np.minimum(np.where(ballots[:,winner]>=delta,price,0.),budgets) * weights).sum()
     if verbose>1:
-        spent = (np.minimum(np.where(ballots[:,winner]>=delta,price,0.),budgets) * weights).sum()
         print("Spent {}% of budget".format(myfmt(spent/spendable_budget*100)))
     budgets -= np.minimum(np.where(ballots[:,winner]>=delta,price,0.),budgets)
-    return None
+    return spent
 
 def sign(x):
     return 1. if x > 0 else -1.0 if x < 0 else 0
@@ -361,7 +366,7 @@ def TQBBU(ballots,
     cost = numvotes / numseats
     total_budget += cost * qtype
 
-    if qtype > 1:
+    if qtype >= 1:
         # For Droop quota, subtract a small fraction of a vote so we can't
         # pay for an extra seat
         total_budget -= 1./ (64 * numseats)
@@ -385,6 +390,8 @@ def TQBBU(ballots,
     votes = []
     exh_votes = []
     pct_exh_budgets = []
+    sorted_tuples_list = []
+    pct_budget_spent = []
 
     for seat in range(numseats):
         if verbose>1:
@@ -418,8 +425,11 @@ def TQBBU(ballots,
         votes += [vote]
         exh_votes += [exhausted_votes]
         pct_exh_budgets += [exhausted_budget/spendable_budget * 100]
+        sorted_tuples_list += [busort]
 
-        spend_budget(ballots,weights,budgets,winner,maxprice_winner,delta,spendable_budget,verbose=verbose)
+        spent = spend_budget(ballots,weights,budgets,winner,maxprice_winner,delta,spendable_budget,verbose=verbose)
+        pct_budget_spent += [spent/spendable_budget * 100]
+
         if eliminate_winners:
             cands = np.compress(cands != winner,cands)
             ncands -= 1
@@ -452,8 +462,9 @@ def TQBBU(ballots,
                                     maxscore,
                                     numcands)
     # Do cumulative sums:
-    for score in range(maxscore-1,-1,-1):
-        score_budget[score] += score_budget[score-1]
+    for score in range(maxscore-1,0,-1):
+        score_budget[score] += score_budget[score+1]
+        score_votes[score] += score_votes[score+1]
 
     # find delta
     for delta in range(maxscore,0,-1):
@@ -483,25 +494,28 @@ def TQBBU(ballots,
 
     if verbose>0:
         print("\n-----------\n")
-        for seat, (delta, vote, winner, mpw, exv, pctexb) in enumerate(zip(deltas,
-                                                                           votes,
-                                                                           winners,
-                                                                           winprices,
-                                                                           exh_votes,
-                                                                           pct_exh_budgets)):
+        for seat, (delta, vote, winner, mpw, exv, pctexb, pctspent) in enumerate(zip(deltas,
+                                                                                     votes,
+                                                                                     winners,
+                                                                                     winprices,
+                                                                                     exh_votes,
+                                                                                     pct_exh_budgets,
+                                                                                     pct_budget_spent)):
             print(("*** Seat {}, delta {}, votes {}: {}, "
                    "price: {}% of vote; "
                    "votes exhausted: {}; "
-                   "% budget exhausted: {}%").format(seat+1,
-                                                     delta,
-                                                     vote,
-                                                     cnames[winner],
-                                                     myfmt(mpw*100),
-                                                     exv,
-                                                     myfmt(pctexb)))
+                   "% budget exhausted: {}%; "
+                   "% budget spent: {}%").format(seat+1,
+                                                 delta,
+                                                 vote,
+                                                 cnames[winner],
+                                                 myfmt(mpw*100),
+                                                 exv,
+                                                 myfmt(pctexb),
+                                                 myfmt(pctspent)))
         print("-----------")
 
-    return(winners,runners_up)
+    return(winners, runners_up)
 
 class SmartDescriptionFormatter(argparse.RawDescriptionHelpFormatter):
   #def _split_lines(self, text, width): # RawTextHelpFormatter, although function name might change depending on Python
@@ -601,13 +615,13 @@ def main():
 
     numwinners = len(winners)
     if numwinners == 1:
-        winfmt = "1 winner"
+        winfmt = "1 winner    "
     else:
-        winfmt = "{} winners".format(numwinners)
+        winfmt = "{} winners   ".format(numwinners)
 
-    print("\nTQBBU results, ", end="")
-    print("{}:".format(winfmt),", ".join([cnames[q] for q in winners]))
-    print("{} runners-up:".format(numwinners),", ".join([cnames[q] for q in runners_up]))
+    print("\nTQBBU results:")
+    print("\t{}:".format(winfmt),", ".join([cnames[q] for q in winners]))
+    print("\t{} runners-up:".format(numwinners),", ".join([cnames[q] for q in runners_up]))
 
 if __name__ == "__main__":
     main()
