@@ -134,8 +134,12 @@ def tqbHarmonic(x,k):
     return x / (1+k)
 
 # geometric
-def tqbGeometric(x,k):
-    return x / (1<<k)
+class TqbGeometric:
+    def __init__(self,inverse_factor):
+        self.inverse_factor = inverse_factor
+
+    def __call__(self,x,k):
+        return x / self.inverse_factor ** k
 
 def select_one_TQBBU(ballots,
                      weights,
@@ -162,7 +166,9 @@ def select_one_TQBBU(ballots,
     tqb_function = {0:tqbNone,
                     1:TqbArithmetic(cost,total_budget),
                     2:tqbHarmonic,
-                    3:tqbGeometric}[tqb_option]
+                    3:TqbGeometric(2),
+                    4:TqbGeometric(5/4),
+                    5:TqbGeometric(sqrt(2))}[tqb_option]
 
     if verbose > 1:
         nk = int(total_budget/cost) + 1
@@ -219,7 +225,10 @@ def select_one_TQBBU(ballots,
     tqbsum_tuples = sorted([(t,c) for t, c in zip(tqbsums[cands],cands)], reverse=True)
 
     winner_tqbsum, winner = tqbsum_tuples[0]
-    ru_tqbsum, runner_up  = tqbsum_tuples[1]
+    if len(tqbsum_tuples) > 1:
+        ru_tqbsum, runner_up  = tqbsum_tuples[1]
+    else:
+        print("Only one candidate")
 
     # Do cumulative sums:
     # NB: Accumulation is higher to lower
@@ -366,6 +375,9 @@ def TQBBU(ballots,
     cost = numvotes / numseats
     total_budget += cost * qtype
 
+    # Runoff threshold is 0.5%
+    recount_threshold = 0.005
+
     if qtype >= 1:
         # For Droop quota, subtract a small fraction of a vote so we can't
         # pay for an extra seat
@@ -433,6 +445,12 @@ def TQBBU(ballots,
         if eliminate_winners:
             cands = np.compress(cands != winner,cands)
             ncands -= 1
+
+        if verbose:
+            if abs(busort[0][0] - busort[1][0]) < recount_threshold:
+                print("\n*** For Seat {} --- Runner-up's top-quota-biased budgeted utility within 0.5%, recount required".format(seat+1))
+                print("*** Winner {}'s Top-quota-biased budgeted utility: {}%".format(cnames[winner],myfmt(busort[0][0] * 100)))
+                print("*** Runner-up {}'s Top-quota-biased budgeted utility: {}%\n".format(cnames[runner_up],myfmt(busort[1][0] * 100)))
 
         if verbose>1:
             print(("\n-----------\n"
@@ -567,17 +585,24 @@ def main():
                         default=False,
                         help="Allows candidates to win multiple seats. [default: False]")
     parser.add_argument('-b','--top-quota-biasing',
-                        choices=['N', 'NONE','A', 'ARITHMETIC', 'H', 'HARMONIC', 'G', 'GEOMETRIC'],
+                        choices=['N', 'NONE',
+                                 'A', 'ARITHMETIC',
+                                 'H', 'HARMONIC',
+                                 'G', 'GEOMETRIC',
+                                 '8', '80PCT',
+                                 '7', '707PCT'],
                         default="ARITHMETIC",
                         help="""Top quota biasing.
-                        N, NONE: No biasing, equivalent to Allocated Score *.
-                        A, ARITHMETIC: Each quota below top is 1/numseats less than the previous.
-                        H, HARMONIC: k-th quota box divided by k.
-                        G, GEOMETRIC: k-th quota box divided by 2^k.
+                        N, NONE: Identity function, No biasing, equivalent to Allocated Score *;
+                        A, ARITHMETIC: Each quota below top is 1/numseats less than the previous;
+                        H, HARMONIC: k-th quota box divided by k;
+                        G, GEOMETRIC: k-th quota box divided by 2^k;
+                        8, 80PCT: Alternate Geometric -- k-th quota box multiplied by (0.80)^k;
+                        7, 707PCT: Alternate Geometric -- k-th quota box multiplied by (1/sqrt(2))^k (i.e., 70.7 pct);
                         [default: ARITHMETIC]""")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
-                        help="Add verbosity [default: 0]")
+                        help="Add verbosity. Repeat to increase level (e.g. -vvv) [default: 0]")
     args = parser.parse_args()
 
     ballots, weights, cnames = csvtoballots(args.inputfile)
@@ -586,7 +611,7 @@ def main():
 
     qtype = {"HARE":0, "DROOP":1}[args.quota_type]
 
-    tqb_option = {"N":0, "A":1, "H":2, "G":3}[args.top_quota_biasing[0]]
+    tqb_option = {"N":0, "A":1, "H":2, "G":3, "8":4, "7":5}[args.top_quota_biasing[0]]
     
     eliminate_winners = not args.allow_repeated_winners
 
