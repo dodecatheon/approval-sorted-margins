@@ -218,11 +218,12 @@ def select_one_TQBBU(ballots,
 
     tqbsums /= (weights * budgets * maxscore).sum()
 
-    if verbose > 1:
-        for c in cands:
-            print ("Candidate", cnames[c], ", utility =", utility[c], ", tqbsum =", tqbsums[c])
-
     tqbsum_tuples = sorted([(t,c) for t, c in zip(tqbsums[cands],cands)], reverse=True)
+
+    if verbose > 1:
+        for t, c in tqbsum_tuples:
+            print ("Candidate", cnames[c], ", tqbsum =", myfmt(t), ", utility =", myfmt(utility[c]) )
+
 
     winner_tqbsum, winner = tqbsum_tuples[0]
     if len(tqbsum_tuples) > 1:
