@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 """
-TQBBU:
+THS:
 
-Top Quota Biased Budgeted Utility
+Top-Heavy Score (w/Equally Priced subtractive spending)
 
 Like Allocated Score, but budget utilities are put into quota-width bins,
 in descending order of score, and the average score in each bin is scaled
 according to the biasing option.
 
-The candidate with the highest TQBBU wins the seat.
+The candidate with the highest top-heavy scoresum wins the seat.
 
 Biasing options are None (== Allocated Score); Arithmetic; Harmonic; Geometric.
 
@@ -19,23 +19,28 @@ Then ballots spend their ballots according to the same spending method in
 ranked-MES:
 
 Determine quota threshold score, AKA delta, the score at which a quota of
-budget is available for the TQBBU winner.
+budget is available for the THS winner.
 
 For all ballots giving the seat winner a score of delta or higher,
 determine the price to be exhausted, expending smaller budgets
 completely. For remaining ballots, subtract price from budget, equal budget
 shares from each ballot.
 
-If TQBBU winner has less than a quota of budget remaining among
+If THS winner has less than a quota of budget remaining among
 supporters, exhaust all supporters' budgets completely
 (i.e., delta == 1).
 """
 import argparse
 from ballot_tools.csvtoballots import *
 import numpy as np
+import scipy.special as sp
+from itertools import combinations
+from collections import defaultdict
 
 import math
 log10 = math.log10
+log = math.log
+digamma = sp.digamma
 isclose = math.isclose
 sqrt = math.sqrt
 eps = np.finfo(float).eps
@@ -118,11 +123,11 @@ def find_support(ballots, weights, budgets, maxscore, numcands):
     return score_budget, score_votes, utility
 
 # NONE
-def tqbNone(x,k):
+def thsNone(x,k):
     return x
 
 # Arithmetic
-class TqbArithmetic:
+class thsArithmetic:
     def __init__(self,quota,total):
         self.chunk = quota / total
 
@@ -130,18 +135,18 @@ class TqbArithmetic:
         return x * (1. - k*self.chunk)
 
 # Harmonic
-def tqbHarmonic(x,k):
+def thsHarmonic(x,k):
     return x / (1+k)
 
 # geometric
-class TqbGeometric:
+class thsGeometric:
     def __init__(self,inverse_factor):
         self.inverse_factor = inverse_factor
 
     def __call__(self,x,k):
         return x / self.inverse_factor ** k
 
-def select_one_TQBBU(ballots,
+def select_one_THS(ballots,
                      weights,
                      budgets,
                      cands,
@@ -150,7 +155,7 @@ def select_one_TQBBU(ballots,
                      cost,
                      spendable_budget,
                      total_budget,
-                     tqb_option=0,
+                     ths_option=0,
                      verbose=0):
 
     (numballots, numcands) = np.shape(ballots)
@@ -163,25 +168,27 @@ def select_one_TQBBU(ballots,
                                   maxscore,
                                   numcands)
 
-    tqb_function = {0:tqbNone,
-                    1:TqbArithmetic(cost,total_budget),
-                    2:tqbHarmonic,
-                    3:TqbGeometric(2),
-                    4:TqbGeometric(5/4),
-                    5:TqbGeometric(sqrt(2))}[tqb_option]
+    ths_function = {0:thsNone,
+                    1:thsGeometric(2),
+                    2:thsGeometric(3/2),
+                    3:thsGeometric(4/3),
+                    4:thsGeometric(5/4),
+                    5:thsGeometric(6/5),
+                    6:thsArithmetic(cost,total_budget),
+                    7:thsHarmonic}[ths_option]
 
     if verbose > 1:
         nk = int(total_budget/cost) + 1
-        print("Verifying tqb_function, nk =", nk)
-        print(", ".join([myfmt(tqb_function(100.,k)) for k in range(nk)]))
+        print("Verifying ths_function, nk =", nk)
+        print(", ".join([myfmt(ths_function(100.,k)) for k in range(nk)]))
 
     deltas = np.zeros((numcands),dtype=int)
-    tqbsums = np.zeros((numcands))
-    tqbsum_tuples = []
+    thssums = np.zeros((numcands))
+    thssum_tuples = []
     for c in cands:
         k = 0
         budgetsum = 0.
-        tqbsum    = 0.
+        thssum    = 0.
         sbc = score_budget[:,c]
 
         for score in range(maxscore,0,-1):
@@ -196,38 +203,38 @@ def select_one_TQBBU(ballots,
                     deltas[c] = score
 
                 # Since there is at least one chunk, take care of the first one:
-                tqbsum += tqb_function((cost - (lastbsum % cost)) * score,k)
+                thssum += ths_function((cost - (lastbsum % cost)) * score,k)
                 k += 1
 
                 # Then do the rest of the chunks
                 for kk in range(1,nk):
-                    tqbsum += tqb_function(cost * score,k)
+                    thssum += ths_function(cost * score,k)
                     k += 1
 
                 # Handle the leftover:
-                tqbsum += tqb_function((budgetsum - k*cost)*score,k)
+                thssum += ths_function((budgetsum - k*cost)*score,k)
 
             else:
-                tqbsum += tqb_function(sbc[score]*score,k)
+                thssum += ths_function(sbc[score]*score,k)
                 
         # If there isn't a full cost-amount of budget for this candidate, deltas[c] == 1
         if k == 0:
             deltas[c] = 1
 
-        tqbsums[c] = float(tqbsum)
+        thssums[c] = float(thssum)
 
-    tqbsums /= (weights * budgets * maxscore).sum()
+    thssums /= (weights * budgets * maxscore).sum()
 
-    tqbsum_tuples = sorted([(t,c) for t, c in zip(tqbsums[cands],cands)], reverse=True)
+    thssum_tuples = sorted([(t,c) for t, c in zip(thssums[cands],cands)], reverse=True)
 
     if verbose > 1:
-        for t, c in tqbsum_tuples:
-            print ("Candidate", cnames[c], ", tqbsum =", myfmt(t), ", utility =", myfmt(utility[c]) )
+        for t, c in thssum_tuples:
+            print ("Candidate", cnames[c], ", thssum =", myfmt(t), ", utility =", myfmt(utility[c]) )
 
 
-    winner_tqbsum, winner = tqbsum_tuples[0]
-    if len(tqbsum_tuples) > 1:
-        ru_tqbsum, runner_up  = tqbsum_tuples[1]
+    winner_thssum, winner = thssum_tuples[0]
+    if len(thssum_tuples) > 1:
+        ru_thssum, runner_up  = thssum_tuples[1]
     else:
         print("Only one candidate")
 
@@ -252,8 +259,8 @@ def select_one_TQBBU(ballots,
     
     if leq(delta_budget, cost):
         # All votes at and above score == delta for winner are exhausted
-        if verbose > 1:
-            print("\t*** select_one_TQBBU: winner budget < cost, delta =", delta)
+        if verbose > 0:
+            print("\t*** select_one_THS: winner budget < cost, delta =", delta)
             print("score_budget = ", delta_budget)
             print("score_votes = ", delta_votes)
 
@@ -267,25 +274,19 @@ def select_one_TQBBU(ballots,
             price = delta_budget / delta_votes
 
     else:
-        budget_tuples = [(b,i)
-                        for i, (b, score) in enumerate(zip(budgets,
-                                                           ballots[:,winner]))
-                        if b > 0 and score >= delta]
-        
-        min_budget = 10.
-        for b, i in budget_tuples:
-            if b < min_budget:
-                min_budget = float(b)
 
-        # Verify delta_budget:
-        bcheck = [b for b, score in zip(budgets,ballots[:,winner])
-                    if b > 0 and score >= delta]
-        bsumcheck = sum(bcheck)
-        blen = len(bcheck)
-
-        if bsumcheck != delta_budget:
-            if verbose > 1:
-                print("bsumcheck =", bsumcheck, ", delta_budget =", delta_budget, ", blen =", blen)
+        # Find min_budget and find total ballots for each budget value.
+        # NB: for early seats, there will be only 1 or 2 different values.
+        #     but for > log2(#ballots) seats, almost every ballot will have a different budget
+        budget_counts = defaultdict(int)
+        min_budget = 10.0
+        delta_ballots = 0
+        for score, w, b in zip(ballots[:,winner],weights,budgets):
+            if (b > 0.0) and (score >= delta):
+                budget_counts[b] += w
+                delta_ballots += 1
+                if b < min_budget:
+                    min_budget = float(b)
 
         remaining_cost = float(cost)
         remaining_votes = float(delta_votes)
@@ -302,12 +303,14 @@ def select_one_TQBBU(ballots,
             if verbose > 1:
                 print("Minimum budget on above-threshold ballots is greater than average price, no need for sorting")
         else:
-            # Sort budget tuples in place
-            budget_tuples.sort()
+            sorted_bctuples = sorted([pair for pair in budget_counts.items()])
 
-            # Then find the price for non-exhausted ballots such that cost is spent
-            for b, i in budget_tuples:
-                w = weights[i]
+            if verbose:
+                print("Dict method reduces sorting length from {} to {}".format(delta_ballots,
+                                                                                len(sorted_bctuples)))
+
+            # Find the price for non-exhausted ballots such that cost is spent
+            for b, w in sorted_bctuples:
                 wb = w * b
                 if leq(price,b):
                     break
@@ -336,7 +339,7 @@ def select_one_TQBBU(ballots,
             delta,
             delta_budget,
             delta_votes,
-            tqbsum_tuples,
+            thssum_tuples,
             exh_votes,
             exh_budget)
 
@@ -351,16 +354,16 @@ def spend_budget(ballots, weights, budgets, winner, price, delta, spendable_budg
 def sign(x):
     return 1. if x > 0 else -1.0 if x < 0 else 0
 
-def TQBBU(ballots,
+def THS(ballots,
           weights,
           cnames,
           numseats,
           verbose=0,
           qtype=1,
           eliminate_winners=True,
-          tqb_option=0):
+          ths_option=0):
 
-    """Run TQBBU to elect <numseats> in a PR multiwinner election"""
+    """Run THS to elect <numseats> in a PR multiwinner election"""
 
     numballots, numcands = np.shape(ballots)
     ncands = int(numcands) # force copy
@@ -419,7 +422,7 @@ def TQBBU(ballots,
          delta_votes,
          busort,
          exhausted_votes,
-         exhausted_budget) = select_one_TQBBU(ballots,
+         exhausted_budget) = select_one_THS(ballots,
                                               weights,
                                               budgets,
                                               cands,
@@ -428,7 +431,7 @@ def TQBBU(ballots,
                                               cost,
                                               spendable_budget,
                                               total_budget,
-                                              tqb_option=tqb_option,
+                                              ths_option=ths_option,
                                               verbose=verbose)
         vote = delta_votes
         winners += [winner]
@@ -532,7 +535,85 @@ def TQBBU(ballots,
                                                  exv,
                                                  myfmt(pctexb),
                                                  myfmt(pctspent)))
-        print("-----------")
+        print("\n-----------\n")
+        if verbose > 1:
+            mp1 = maxscore + 1
+            util = np.arange(mp1) / maxscore
+            dgshift = 1 - digamma(2.)
+
+            all_win_tups = [tup for tup in combinations(range(numcands),numseats)]
+            num_sets = len(all_win_tups)
+            all_num_winners = np.zeros((num_sets))
+            all_ge_one_winner = np.zeros((num_sets))
+            all_harmonic_util = np.zeros((num_sets))
+            all_log_util = np.zeros((num_sets))
+
+            wintuple = tuple(winners)
+
+            for i, win_set in enumerate(all_win_tups):
+                win_list = list(win_set)
+                anw = 0.0
+                alo = 0.0
+                ahu = 0.0
+                alu = 0.0
+                for ballot, w in zip(ballots,weights):
+                    b = ballot[win_list]
+                    if np.any(b>0):
+                        anw += w * b.compress(b>0).size
+                        alo += w
+                        usum = util[b].sum()
+                        ahu += w*(digamma(1+usum)+dgshift)
+                        alu += w*log(0.5+usum)
+                all_num_winners[i] = anw / numvotes
+                all_ge_one_winner[i] = alo / numvotes
+                all_harmonic_util[i] = ahu / numvotes
+                all_log_util[i] = alu / numvotes
+
+            i_win = all_win_tups.index(tuple(sorted(winners)))
+
+            i_anw = all_num_winners.argmax()
+            i_alo = all_ge_one_winner.argmax()
+            i_ahu = all_harmonic_util.argmax()
+            i_alu = all_log_util.argmax()
+
+            avg_num_winners = all_num_winners[i_win]
+            at_least_one_w = all_ge_one_winner[i_win]
+            avg_harmonic_utility = all_harmonic_util[i_win]
+            avg_log_utility = all_log_util[i_win]
+
+            print("\tAverage number of winners per ballot  = {}".format(myfmt(avg_num_winners)),
+                  ", {}% of max with winners ({})".format(myfmt(avg_num_winners/all_num_winners[i_anw]*100),
+                                                          ", ".join(cnames[list(all_win_tups[i_anw])])))
+            print("\t# of ballots with at least one winner = {}%".format(myfmt(at_least_one_w*100)),
+                  ", {}% of max with winners ({})".format(myfmt(at_least_one_w/all_ge_one_winner[i_alo]*100),
+                                                          ", ".join(cnames[list(all_win_tups[i_alo])])))
+            print("\tAverage harmonic utility =", myfmt(avg_harmonic_utility),
+                  ", {}% of max with winners ({})".format(myfmt(avg_harmonic_utility/all_harmonic_util[i_ahu]*100),
+                                                          ", ".join(cnames[list(all_win_tups[i_ahu])])))
+            print("\tAverage log utility =", myfmt(avg_log_utility),
+                  ", {}% of max with winners ({})".format(myfmt(avg_log_utility/all_log_util[i_alu]*100),
+                                                          ", ".join(cnames[list(all_win_tups[i_alu])])))
+            print("\n\tMax avg#winners set ({}):".format(", ".join(cnames[list(all_win_tups[i_anw])])),
+                  "\n\t\t {}, {}%, {}, {}".format(myfmt(all_num_winners[i_anw]),
+                                                  myfmt(all_ge_one_winner[i_anw]*100),
+                                                  myfmt(all_harmonic_util[i_anw]),
+                                                  myfmt(all_log_util[i_anw])))
+            print("\n\tMax at least one winner set ({}):".format(", ".join(cnames[list(all_win_tups[i_alo])])),
+                  "\n\t\t {}, {}%, {}, {}".format(myfmt(all_num_winners[i_alo]),
+                                                  myfmt(all_ge_one_winner[i_alo]*100),
+                                                  myfmt(all_harmonic_util[i_alo]),
+                                                  myfmt(all_log_util[i_alo])))
+            print("\n\tMax avg harmonic utility set ({}):".format(", ".join(cnames[list(all_win_tups[i_ahu])])),
+                  "\n\t\t {}, {}%, {}, {}".format(myfmt(all_num_winners[i_ahu]),
+                                                  myfmt(all_ge_one_winner[i_ahu]*100),
+                                                  myfmt(all_harmonic_util[i_ahu]),
+                                                  myfmt(all_log_util[i_ahu])))
+            print("\n\tMax avg log utility set ({}):".format(", ".join(cnames[list(all_win_tups[i_alu])])),
+                  "\n\t\t {}, {}%, {}, {}".format(myfmt(all_num_winners[i_alu]),
+                                                  myfmt(all_ge_one_winner[i_alu]*100),
+                                                  myfmt(all_harmonic_util[i_alu]),
+                                                  myfmt(all_log_util[i_alu])))
+            print("\n-----------\n")
 
     return(winners, runners_up)
 
@@ -587,20 +668,21 @@ def main():
                         help="Allows candidates to win multiple seats. [default: False]")
     parser.add_argument('-b','--top-quota-biasing',
                         choices=['N', 'NONE',
+                                 '1', '1GEOMETRIC',
+                                 '2', '2GEOMETRIC',
+                                 '3', '3GEOMETRIC',
+                                 '4', '4GEOMETRIC',
+                                 '5', '5GEOMETRIC',
                                  'A', 'ARITHMETIC',
-                                 'H', 'HARMONIC',
-                                 'G', 'GEOMETRIC',
-                                 '8', '80PCT',
-                                 '7', '707PCT'],
-                        default="ARITHMETIC",
+                                 'H', 'HARMONIC'],
+                        default="4GEOMETRIC",
                         help="""Top quota biasing.
                         N, NONE: Identity function, No biasing, equivalent to Allocated Score *;
                         A, ARITHMETIC: Each quota below top is 1/numseats less than the previous;
                         H, HARMONIC: k-th quota box divided by k;
-                        G, GEOMETRIC: k-th quota box divided by 2^k;
-                        8, 80PCT: Alternate Geometric -- k-th quota box multiplied by (0.80)^k;
-                        7, 707PCT: Alternate Geometric -- k-th quota box multiplied by (1/sqrt(2))^k (i.e., 70.7 pct);
-                        [default: ARITHMETIC]""")
+                        #, #GEOMETRIC: Geometric scaling. k-th quota box is 1/(1 + 1/#) times the (k-1)-st quota box;
+                        1, 1GEOMETRIC: 50pct; 2: 66.6pct; 3: 75pct; 4: 80pct; 5: 83.3pct;
+                        [default: 4GEOM = 80pct geometric reduction]""")
     parser.add_argument('-v', '--verbose', action='count',
                         default=0,
                         help="Add verbosity. Repeat to increase level (e.g. -vvv) [default: 0]")
@@ -612,7 +694,7 @@ def main():
 
     qtype = {"HARE":0, "DROOP":1}[args.quota_type]
 
-    tqb_option = {"N":0, "A":1, "H":2, "G":3, "8":4, "7":5}[args.top_quota_biasing[0]]
+    ths_option = {"N":0, "1":1, "2":2, "3":3, "4":4, "5":5, "A":6, "H":7 }[args.top_quota_biasing[0]]
     
     eliminate_winners = not args.allow_repeated_winners
 
@@ -632,11 +714,11 @@ def main():
             print("Ballots converted to approval for scores >", args.approval_cutoff)
 
     (winners,
-     runners_up) = TQBBU(ballots, weights, cnames, args.numseats,
+     runners_up) = THS(ballots, weights, cnames, args.numseats,
                          verbose=args.verbose,
                          qtype=qtype,
                          eliminate_winners=eliminate_winners,
-                         tqb_option=tqb_option)
+                         ths_option=ths_option)
     print("- "*30)
 
     numwinners = len(winners)
@@ -645,7 +727,7 @@ def main():
     else:
         winfmt = "{} winners   ".format(numwinners)
 
-    print("\nTQBBU results:")
+    print("\nTHS results:")
     print("\t{}:".format(winfmt),", ".join([cnames[q] for q in winners]))
     print("\t{} runners-up:".format(numwinners),", ".join([cnames[q] for q in runners_up]))
 
