@@ -147,16 +147,17 @@ class thsGeometric:
         return x / self.inverse_factor ** k
 
 def select_one_THS(ballots,
-                     weights,
-                     budgets,
-                     cands,
-                     cnames,
-                     maxscore,
-                     cost,
-                     spendable_budget,
-                     total_budget,
-                     ths_option=0,
-                     verbose=0):
+                   weights,
+                   budgets,
+                   cands,
+                   cnames,
+                   maxscore,
+                   cost,
+                   spendable_budget,
+                   total_budget,
+                   ths_option=0,
+                   approval_cutoff=-1,
+                   verbose=0):
 
     (numballots, numcands) = np.shape(ballots)
 
@@ -244,64 +245,92 @@ def select_one_THS(ballots,
         score_budget[score] += score_budget[score+1]
         score_votes[score] += score_votes[score+1]
 
-    for delta in range(maxscore,0,-1):
-        if leq(cost,score_budget[delta,winner]):
-            break
+    #
+    # Compute delta (quota-threshold approval), with a minimum value of 1,
+    # if we haven't forced a hardcoded approval cutoff
+    #
+    if approval_cutoff < 0:
+        for delta in range(maxscore,0,-1):
+            if leq(cost,score_budget[delta,winner]):
+                break
 
-    if delta < 1:
-        delta = 1
+        if delta < 1:
+            delta = 1
 
-    if delta != deltas[winner]:
-        print("*** Computed delta {} not equal to saved delta {}".format(delta,deltas[winner]))
+        if delta != deltas[winner]:
+            print("\n\t*** Computed delta {} not equal to saved delta {}".format(delta,deltas[winner]))
+    else:
+        delta = approval_cutoff + 1
+        if verbose > 0:
+            print("\n\t*** Forcing approval cutoff, minimum approved score = {}".format(delta))
 
     delta_budget = score_budget[delta,winner]
     delta_votes  = score_votes[delta,winner]
+
+    remaining_cost = 1.0 * cost
+    remaining_votes = 1.0 * delta_votes
+    if remaining_votes > 0.:
+        price = remaining_cost / remaining_votes
+    else:
+        price = 1.
+        if verbose > 1:
+            print("\n\t*** remaining_votes <= 0, price set to 1.0\n")
+
+    exh_votes = 0.0
+    exh_budget = 0.0
+    exh_ballots = 0
+    delta_ballots = 0
     
     if leq(delta_budget, cost):
         # All votes at and above score == delta for winner are exhausted
         if verbose > 0:
-            print("\t*** select_one_THS: winner budget < cost, delta =", delta)
-            print("score_budget = ", delta_budget)
-            print("score_votes = ", delta_votes)
+            print("\n\t*** select_one_THS: winner budget < cost, delta =", delta, ", all delta+ ballots exhausted")
+            print("\tExhausted budget = ", delta_budget)
+            print("\tExhausted votes = ", delta_votes)
 
-        exh_votes  = float(delta_votes)
-        exh_budget = float(delta_budget)
-        if delta_votes <= 0.:
-            if verbose > 0:
-                print("delta_votes = 0.")
-            price = 10.
-        else:
-            price = delta_budget / delta_votes
+        exh_votes  += delta_votes
+        exh_budget += delta_budget
+        price = np.where(ballots[:,winner]>=delta,budgets,0.0).max()
+        if price == 0.0:
+            price = 1.0
+        if verbose > 0:
+            print("\n\tPrice for all exhausted ballots = max budget, {}% of a vote\n".format(myfmt(price*100)))
 
     else:
 
         # Find min_budget and find total ballots for each budget value.
-        # NB: for early seats, there will be only 1 or 2 different values.
-        #     but for > log2(#ballots) seats, almost every ballot will have a different budget
         budget_counts = defaultdict(int)
         min_budget = 10.0
         delta_ballots = 0
         for score, w, b in zip(ballots[:,winner],weights,budgets):
             if (b > 0.0) and (score >= delta):
-                budget_counts[b] += w
-                delta_ballots += 1
-                if b < min_budget:
-                    min_budget = float(b)
+                if b <= price:
+                    exh_budget += w*b
+                    exh_votes += w
+                    exh_ballots += 1
+                else:
+                    if b < min_budget:
+                        min_budget = float(b)
+                    budget_counts[b] += w
+                    delta_ballots += 1
 
-        remaining_cost = float(cost)
-        remaining_votes = float(delta_votes)
-        exh_votes  = 0.0
-        exh_budget = 0.0
+        if verbose > 0:
+            print("\n\tInitial price check filtered {} ballots, {} votes out of {} ballots, {} votes".format(exh_ballots,
+                                                                                                             exh_votes,
+                                                                                                             exh_ballots + delta_ballots,
+                                                                                                             delta_votes))
+        remaining_votes -= exh_votes
+        remaining_cost -= exh_budget
         if remaining_votes > 0.:
             price = remaining_cost / remaining_votes
         else:
-            if verbose > 1:
-                print("*** remaining_votes <= 0, price set to 10")
-            price = 10.
+            price = np.where(ballots[:,winner]>=delta,budgets,0.0).max()
+            if price == 0.0:
+                price = 1.0
 
         if leq(price, min_budget):
             if verbose > 1:
-                print("Minimum budget on above-threshold ballots is greater than average price, no need for sorting")
+                print("\n\tMinimum budget on above-threshold ballots is greater than average price, no need for sorting\n")
         else:
             sorted_bctuples = sorted([pair for pair in budget_counts.items()])
 
@@ -355,13 +384,14 @@ def sign(x):
     return 1. if x > 0 else -1.0 if x < 0 else 0
 
 def THS(ballots,
-          weights,
-          cnames,
-          numseats,
-          verbose=0,
-          qtype=1,
-          eliminate_winners=True,
-          ths_option=0):
+        weights,
+        cnames,
+        numseats,
+        verbose=0,
+        qtype=1,
+        eliminate_winners=True,
+        approval_cutoff=-1,
+        ths_option=0):
 
     """Run THS to elect <numseats> in a PR multiwinner election"""
 
@@ -376,23 +406,21 @@ def THS(ballots,
 
     # base_budget = 1.0
     total_budget = 1. * numvotes
-    cost = numvotes / numseats
-    total_budget += cost * qtype
+    cost = numvotes / (numseats + qtype)
 
     # Runoff threshold is 0.5%
     recount_threshold = 0.005
 
     if qtype >= 1:
-        # For Droop quota, subtract a small fraction of a vote so we can't
+        # For Droop quota, add a small fraction of a vote so we can't
         # pay for an extra seat
-        total_budget -= 1./ (64 * numseats)
+        cost += 1./ (16 * numseats)
 
-    budget_per_vote = total_budget / numvotes
-    spendable_budget = cost * numseats
-    starting_total_budget = 1. * total_budget
+    budget_per_vote = 1.0
+    spendable_budget = 1.0 * total_budget
 
     if verbose:
-        print("Cost per seat: {}% of spendable budget".format(myfmt(cost/spendable_budget*100)))
+        print("Cost per seat (i.e. quota): {}% of spendable budget".format(myfmt(cost/spendable_budget*100)))
 
     budgets = np.full((numballots), budget_per_vote)
     budget_spent = 0.0
@@ -432,6 +460,7 @@ def THS(ballots,
                                               spendable_budget,
                                               total_budget,
                                               ths_option=ths_option,
+                                              approval_cutoff=approval_cutoff,
                                               verbose=verbose)
         vote = delta_votes
         winners += [winner]
@@ -452,9 +481,9 @@ def THS(ballots,
 
         if verbose:
             if abs(busort[0][0] - busort[1][0]) < recount_threshold:
-                print("\n*** For Seat {} --- Runner-up's top-quota-biased budgeted utility within 0.5%, recount required".format(seat+1))
-                print("*** Winner {}'s Top-quota-biased budgeted utility: {}%".format(cnames[winner],myfmt(busort[0][0] * 100)))
-                print("*** Runner-up {}'s Top-quota-biased budgeted utility: {}%\n".format(cnames[runner_up],myfmt(busort[1][0] * 100)))
+                print("\n*** For Seat {} --- Runner-up's top-heavy utility within 0.5%, recount required".format(seat+1))
+                print("*** Winner {}'s top-heavy utility: {}%".format(cnames[winner],myfmt(busort[0][0] * 100)))
+                print("*** Runner-up {}'s top-heavy utility: {}%\n".format(cnames[runner_up],myfmt(busort[1][0] * 100)))
 
         if verbose>1:
             print(("\n-----------\n"
@@ -472,7 +501,7 @@ def THS(ballots,
         if verbose>1:
             print("- "*30)
             print("After paying for seat:")
-            print("\t% of spendable budget spent:  {}%".format(myfmt((starting_total_budget - total_budget)/
+            print("\t% of spendable budget spent:  {}%".format(myfmt((spendable_budget - total_budget)/
                                                                      spendable_budget * 100)))
             print("\t% of total budget remaining:  {}%".format(myfmt(total_budget / spendable_budget * 100)))
 
@@ -497,7 +526,7 @@ def THS(ballots,
     if verbose > 0:
         print("- "*30)
         print("\t{} winners: ".format(len(winners)), ", ".join([cnames[c] for c in winners]))
-        print(("\tRemaining candidates, "
+        print(("\n\tRemaining candidates, "
                "delta = {}, "
                "remaining budget {}%:").format(delta,
                                                myfmt(total_budget/spendable_budget * 100)))
@@ -536,7 +565,7 @@ def THS(ballots,
                                                  myfmt(pctexb),
                                                  myfmt(pctspent)))
         print("\n-----------\n")
-        if verbose > 1:
+        if verbose > 3:
             mp1 = maxscore + 1
             util = np.arange(mp1) / maxscore
             dgshift = 1 - digamma(2.)
@@ -656,17 +685,17 @@ def main():
                         Enter a value >= 0 to count scores over cutoff value as approved
                         [default: -1]""")
     parser.add_argument("-q", "--quota-type",
-                        choices=["HARE","DROOP"],
+                        choices=["HARE","DROOP","0", "1"],
                         default="HARE",
                         help="""Starting budget per ballot.
-                        HARE = base budget per ballot = $100 ;
-                        DROOP = add base*1/numseats to per-ballot budget corresponding to Droop Quota;
+                        0, HARE = Cost per seat (quota) = numseats / numvotes ;
+                        1, DROOP = Cost per seat (quota) = (numseats / (numvotes + 1)) plus a small fraction of a vote. 
                         [default: HARE]""")
     parser.add_argument('-r','--allow-repeated-winners',
                         action='store_true',
                         default=False,
                         help="Allows candidates to win multiple seats. [default: False]")
-    parser.add_argument('-b','--top-quota-biasing',
+    parser.add_argument('-t','--top-heavy-method',
                         choices=['N', 'NONE',
                                  '1', '1GEOMETRIC',
                                  '2', '2GEOMETRIC',
@@ -676,7 +705,7 @@ def main():
                                  'A', 'ARITHMETIC',
                                  'H', 'HARMONIC'],
                         default="4GEOMETRIC",
-                        help="""Top quota biasing.
+                        help="""Top-heavy method.
                         N, NONE: Identity function, No biasing, equivalent to Allocated Score *;
                         A, ARITHMETIC: Each quota below top is 1/numseats less than the previous;
                         H, HARMONIC: k-th quota box divided by k;
@@ -692,9 +721,9 @@ def main():
 
     print("- "*30)
 
-    qtype = {"HARE":0, "DROOP":1}[args.quota_type]
+    qtype = {"HARE":0, "DROOP":1, "0":0, "1":1}[args.quota_type]
 
-    ths_option = {"N":0, "1":1, "2":2, "3":3, "4":4, "5":5, "A":6, "H":7 }[args.top_quota_biasing[0]]
+    ths_option = {"N":0, "1":1, "2":2, "3":3, "4":4, "5":5, "A":6, "H":7 }[args.top_heavy_method[0]]
     
     eliminate_winners = not args.allow_repeated_winners
 
@@ -708,17 +737,13 @@ def main():
         for ballot, w in zip(ballots,weights):
             print("\t{}:".format(w),ballot)
 
-    if args.approval_cutoff > -1:
-        ballots = np.where(ballots > args.approval_cutoff, 1, 0)
-        if args.verbose:
-            print("Ballots converted to approval for scores >", args.approval_cutoff)
-
     (winners,
      runners_up) = THS(ballots, weights, cnames, args.numseats,
-                         verbose=args.verbose,
-                         qtype=qtype,
-                         eliminate_winners=eliminate_winners,
-                         ths_option=ths_option)
+                       verbose=args.verbose,
+                       qtype=qtype,
+                       eliminate_winners=eliminate_winners,
+                       approval_cutoff=args.approval_cutoff,
+                       ths_option=ths_option)
     print("- "*30)
 
     numwinners = len(winners)
