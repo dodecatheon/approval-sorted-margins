@@ -180,8 +180,8 @@ def select_one_THS(ballots,
 
     if verbose > 1:
         nk = int(total_budget/cost) + 1
-        print("Verifying ths_function, nk =", nk)
-        print(", ".join([myfmt(ths_function(100.,k)) for k in range(nk)]))
+        print("\n\tVerifying ths_function, nk =", nk)
+        print("\t"+", ".join([myfmt(ths_function(100.,k)) for k in range(nk)]) + "\n")
 
     deltas = np.zeros((numcands),dtype=int)
     thssums = np.zeros((numcands))
@@ -336,9 +336,9 @@ def select_one_THS(ballots,
         else:
             sorted_bctuples = sorted([pair for pair in budget_counts.items()])
 
-            if verbose:
-                print("\n\tDict method reduces sort length from {} to {}".format(delta_ballots,
-                                                                                 len(sorted_bctuples)))
+            if verbose > 1:
+                print("\n\tFound {} distinct budget values on {} ballot types\n".format(len(sorted_bctuples),
+                                                                                        delta_ballots))
 
             # Find the price for non-exhausted ballots such that cost is spent
             for b, w in sorted_bctuples:
