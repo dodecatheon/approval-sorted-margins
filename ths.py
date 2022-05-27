@@ -292,6 +292,8 @@ def select_one_THS(ballots,
         exh_budget += delta_budget
         price = np.where(ballots[:,winner]>=delta,budgets,0.0).max()
         if price == 0.0:
+            if verbose:
+                print("\n\t*** No budget available, price set to 1.0\n")
             price = 1.0
         if verbose > 0:
             print("\n\tPrice for all exhausted ballots = max budget, {}% of a vote\n".format(myfmt(price*100)))
@@ -330,13 +332,13 @@ def select_one_THS(ballots,
 
         if leq(price, min_budget):
             if verbose > 1:
-                print("\n\tMinimum budget on above-threshold ballots is greater than average price, no need for sorting\n")
+                print("\n\tMinimum budget on filtered above-threshold ballots is greater than average price, no need for sorting\n")
         else:
             sorted_bctuples = sorted([pair for pair in budget_counts.items()])
 
             if verbose:
-                print("Dict method reduces sorting length from {} to {}".format(delta_ballots,
-                                                                                len(sorted_bctuples)))
+                print("\n\tDict method reduces sort length from {} to {}".format(delta_ballots,
+                                                                                 len(sorted_bctuples)))
 
             # Find the price for non-exhausted ballots such that cost is spent
             for b, w in sorted_bctuples:
